@@ -1,9 +1,8 @@
 use crate::types::hook_render_error::HookRenderErrorArgs;
-use crate::HookRenderChunkArgs;
-use crate::{HookNoopReturn, PluginDriver};
+use crate::PluginDriver;
+use crate::{HookAugmentChunkHashReturn, HookNoopReturn, HookRenderChunkArgs};
 use anyhow::Result;
-use futures::future::join_all;
-use rolldown_common::Output;
+use rolldown_common::{Output, RenderedChunk};
 use rolldown_sourcemap::SourceMap;
 
 impl PluginDriver {
@@ -30,6 +29,16 @@ impl PluginDriver {
     Ok((args.code, sourcemap_chain))
   }
 
+  pub async fn augment_chunk_hash(&self, chunk: &RenderedChunk) -> HookAugmentChunkHashReturn {
+    let mut hash = String::new();
+    for (plugin, ctx) in &self.plugins {
+      if let Some(plugin_hash) = plugin.augment_chunk_hash(ctx, chunk).await? {
+        hash.push_str(&plugin_hash);
+      }
+    }
+    Ok(Some(hash))
+  }
+
   pub async fn render_error(&self, args: &HookRenderErrorArgs) -> HookNoopReturn {
     for (plugin, ctx) in &self.plugins {
       plugin.render_error(ctx, args).await?;
@@ -37,21 +46,19 @@ impl PluginDriver {
     Ok(())
   }
 
-  pub async fn generate_bundle(&self, bundle: &Vec<Output>, is_write: bool) -> HookNoopReturn {
+  pub async fn generate_bundle(&self, bundle: &mut Vec<Output>, is_write: bool) -> HookNoopReturn {
     for (plugin, ctx) in &self.plugins {
       plugin.generate_bundle(ctx, bundle, is_write).await?;
+      ctx.file_emitter.add_additional_files(bundle);
     }
     Ok(())
   }
 
-  pub async fn write_bundle(&self, bundle: &Vec<Output>) -> HookNoopReturn {
-    let results =
-      join_all(self.plugins.iter().map(|(plugin, ctx)| plugin.write_bundle(ctx, bundle))).await;
-
-    for result in results {
-      result?;
+  pub async fn write_bundle(&self, bundle: &mut Vec<Output>) -> HookNoopReturn {
+    for (plugin, ctx) in &self.plugins {
+      plugin.write_bundle(ctx, bundle).await?;
+      ctx.file_emitter.add_additional_files(bundle);
     }
-
     Ok(())
   }
 }

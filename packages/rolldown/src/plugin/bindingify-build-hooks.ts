@@ -1,53 +1,69 @@
 import { normalizeHook } from '../utils/normalize-hook'
-import type { BindingPluginOptions } from '../binding'
+import type {
+  BindingHookLoadOutput,
+  BindingHookResolveIdOutput,
+  BindingPluginOptions,
+} from '../binding'
 
 import type { Plugin } from './index'
-import { RolldownNormalizedInputOptions } from '../options/input-options'
-import { isEmptySourcemapFiled, transformModuleInfo } from '../utils'
-import path from 'path'
-import { SourceMapInputObject } from '../types/sourcemap'
+import { NormalizedInputOptions } from '../options/normalized-input-options'
+import { isEmptySourcemapFiled } from '../utils/transform-sourcemap'
+import { transformModuleInfo } from '../utils/transform-module-info'
+import path from 'node:path'
+import { bindingifySourcemap, ExistingRawSourceMap } from '../types/sourcemap'
+import { PluginContext } from './plugin-context'
+import { TransformPluginContext } from './transfrom-plugin-context'
+import { bindingifySideEffects } from '../utils/transform-side-effects'
 
 export function bindingifyBuildStart(
-  options: RolldownNormalizedInputOptions,
-  hook?: Plugin['buildStart'],
+  plugin: Plugin,
+  options: NormalizedInputOptions,
 ): BindingPluginOptions['buildStart'] {
+  const hook = plugin.buildStart
   if (!hook) {
     return undefined
   }
   const [handler, _optionsIgnoredSofar] = normalizeHook(hook)
 
   return async (ctx) => {
-    handler.call(ctx, options)
+    await handler.call(new PluginContext(options, ctx, plugin), options)
   }
 }
 
 export function bindingifyBuildEnd(
-  hook?: Plugin['buildEnd'],
+  plugin: Plugin,
+  options: NormalizedInputOptions,
 ): BindingPluginOptions['buildEnd'] {
+  const hook = plugin.buildEnd
   if (!hook) {
     return undefined
   }
   const [handler, _optionsIgnoredSofar] = normalizeHook(hook)
 
-  return async (err) => {
-    handler.call(null, err ? new Error(err) : undefined)
+  return async (ctx, err) => {
+    await handler.call(
+      new PluginContext(options, ctx, plugin),
+      err ? new Error(err) : undefined,
+    )
   }
 }
 
 export function bindingifyResolveId(
-  hook?: Plugin['resolveId'],
+  plugin: Plugin,
+  options: NormalizedInputOptions,
 ): BindingPluginOptions['resolveId'] {
+  const hook = plugin.resolveId
   if (!hook) {
     return undefined
   }
   const [handler, _optionsIgnoredSofar] = normalizeHook(hook)
 
-  return async (specifier, importer, options) => {
+  return async (ctx, specifier, importer, extraOptions) => {
     const ret = await handler.call(
-      null,
+      new PluginContext(options, ctx, plugin),
       specifier,
       importer ?? undefined,
-      options,
+      extraOptions,
     )
     if (ret == false || ret == null) {
       return
@@ -57,50 +73,110 @@ export function bindingifyResolveId(
         id: ret,
       }
     }
-    return ret
+
+    const result: BindingHookResolveIdOutput = {
+      id: ret.id,
+      external: ret.external,
+    }
+
+    if (ret.moduleSideEffects !== null) {
+      // @ts-ignore TODO The typing should import from binding
+      result.sideEffects = bindingifySideEffects(ret.moduleSideEffects)
+    }
+
+    return result
   }
 }
 
-export function bindingifyTransform(
-  hook?: Plugin['transform'],
-): BindingPluginOptions['transform'] {
+export function bindingifyResolveDynamicImport(
+  plugin: Plugin,
+  options: NormalizedInputOptions,
+): BindingPluginOptions['resolveDynamicImport'] {
+  const hook = plugin.resolveDynamicImport
   if (!hook) {
     return undefined
   }
   const [handler, _optionsIgnoredSofar] = normalizeHook(hook)
 
-  return async (code, id) => {
-    const ret = await handler.call(null, code, id)
+  return async (ctx, specifier, importer) => {
+    const ret = await handler.call(
+      new PluginContext(options, ctx, plugin),
+      specifier,
+      importer ?? undefined,
+    )
+    if (ret == false || ret == null) {
+      return
+    }
+    if (typeof ret === 'string') {
+      return {
+        id: ret,
+      }
+    }
+
+    const result: BindingHookResolveIdOutput = {
+      id: ret.id,
+      external: ret.external,
+    }
+
+    if (ret.moduleSideEffects !== null) {
+      // @ts-ignore TODO The typing should import from binding
+      result.sideEffects = bindingifySideEffects(ret.moduleSideEffects)
+    }
+
+    return result
+  }
+}
+
+export function bindingifyTransform(
+  plugin: Plugin,
+  options: NormalizedInputOptions,
+): BindingPluginOptions['transform'] {
+  const hook = plugin.transform
+  if (!hook) {
+    return undefined
+  }
+  const [handler, _optionsIgnoredSofar] = normalizeHook(hook)
+
+  return async (ctx, code, id) => {
+    const ret = await handler.call(
+      new TransformPluginContext(
+        ctx,
+        new PluginContext(options, ctx.inner(), plugin),
+        id,
+        code,
+      ),
+      code,
+      id,
+    )
 
     if (ret == null) {
-      return
+      return undefined
     }
 
     if (typeof ret === 'string') {
       return { code: ret }
     }
 
-    if (!ret.map) {
-      return { code: ret.code }
-    }
-
     return {
       code: ret.code,
-      map: typeof ret.map === 'object' ? JSON.stringify(ret.map) : ret.map,
+      map: bindingifySourcemap(ret.map),
+      sideEffects: bindingifySideEffects(ret.moduleSideEffects),
     }
   }
 }
 
 export function bindingifyLoad(
-  hook?: Plugin['load'],
+  plugin: Plugin,
+  options: NormalizedInputOptions,
 ): BindingPluginOptions['load'] {
+  const hook = plugin.load
   if (!hook) {
     return undefined
   }
   const [handler, _optionsIgnoredSofar] = normalizeHook(hook)
 
-  return async (id) => {
-    const ret = await handler.call(null, id)
+  return async (ctx, id) => {
+    const ret = await handler.call(new PluginContext(options, ctx, plugin), id)
 
     if (ret == null) {
       return
@@ -117,7 +193,7 @@ export function bindingifyLoad(
     let map =
       typeof ret.map === 'object'
         ? ret.map
-        : (JSON.parse(ret.map) as SourceMapInputObject)
+        : (JSON.parse(ret.map) as ExistingRawSourceMap)
     if (!isEmptySourcemapFiled(map.sources)) {
       // normalize original sourcemap sources
       // Port form https://github.com/rollup/rollup/blob/master/src/utils/collapseSourcemaps.ts#L180-L188.
@@ -128,22 +204,34 @@ export function bindingifyLoad(
       )
     }
 
-    return {
+    const result = {
       code: ret.code,
-      map: JSON.stringify(map),
+      map: bindingifySourcemap(map),
     }
+
+    if (ret.moduleSideEffects !== null) {
+      // @ts-ignore TODO The typing should import from binding
+      result.sideEffects = bindingifySideEffects(ret.moduleSideEffects)
+    }
+
+    return result
   }
 }
 
 export function bindingifyModuleParsed(
-  hook?: Plugin['moduleParsed'],
+  plugin: Plugin,
+  options: NormalizedInputOptions,
 ): BindingPluginOptions['moduleParsed'] {
+  const hook = plugin.moduleParsed
   if (!hook) {
     return undefined
   }
   const [handler, _optionsIgnoredSofar] = normalizeHook(hook)
 
   return async (ctx, moduleInfo) => {
-    handler.call(ctx, transformModuleInfo(moduleInfo))
+    await handler.call(
+      new PluginContext(options, ctx, plugin),
+      transformModuleInfo(moduleInfo),
+    )
   }
 }

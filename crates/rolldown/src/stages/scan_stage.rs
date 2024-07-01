@@ -2,19 +2,18 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use futures::future::join_all;
-use index_vec::IndexVec;
-use rolldown_common::{EntryPoint, ImportKind, NormalModuleId};
+use oxc::index::IndexVec;
+use rolldown_common::{EntryPoint, ImportKind, ModuleTable, NormalModuleId, ResolvedRequestInfo};
 use rolldown_error::BuildError;
 use rolldown_fs::OsFileSystem;
 use rolldown_oxc_utils::OxcAst;
 use rolldown_plugin::{HookResolveIdExtraOptions, SharedPluginDriver};
+use rolldown_resolver::ResolveError;
 
 use crate::{
   module_loader::{module_loader::ModuleLoaderOutput, ModuleLoader},
   runtime::RuntimeModuleBrief,
-  types::{
-    module_table::ModuleTable, resolved_request_info::ResolvedRequestInfo, symbols::Symbols,
-  },
+  types::symbols::Symbols,
   utils::resolve_id::resolve_id,
   SharedOptions, SharedResolver,
 };
@@ -48,15 +47,16 @@ impl ScanStage {
     Self { input_options, plugin_driver, fs, resolver, errors: vec![] }
   }
 
-  #[tracing::instrument(skip_all)]
+  #[tracing::instrument(level = "debug", skip_all)]
   pub async fn scan(&mut self) -> anyhow::Result<ScanStageOutput> {
-    tracing::info!("Start scan stage");
-    assert!(!self.input_options.input.is_empty(), "You must supply options.input to rolldown");
+    if self.input_options.input.is_empty() {
+      return Err(anyhow::format_err!("You must supply options.input to rolldown"));
+    }
 
     let module_loader = ModuleLoader::new(
       Arc::clone(&self.input_options),
       Arc::clone(&self.plugin_driver),
-      self.fs.clone(),
+      self.fs,
       Arc::clone(&self.resolver),
     );
 
@@ -73,8 +73,6 @@ impl ScanStage {
     } = module_loader.fetch_all_modules(user_entries).await?;
     self.errors.extend(errors);
 
-    tracing::debug!("Scan stage finished {module_table:#?}");
-
     Ok(ScanStageOutput {
       module_table,
       entry_points,
@@ -87,39 +85,50 @@ impl ScanStage {
   }
 
   /// Resolve `InputOptions.input`
-  #[tracing::instrument(skip_all)]
-  #[allow(clippy::type_complexity)]
-  async fn resolve_user_defined_entries(
-    &mut self,
-  ) -> Result<Vec<(Option<String>, ResolvedRequestInfo)>> {
+
+  #[tracing::instrument(level = "debug", skip_all)]
+  async fn resolve_user_defined_entries(&mut self) -> Result<Vec<(String, ResolvedRequestInfo)>> {
     let resolver = &self.resolver;
     let plugin_driver = &self.plugin_driver;
 
     let resolved_ids = join_all(self.input_options.input.iter().map(|input_item| async move {
-      let specifier = &input_item.import;
-      match resolve_id(
+      struct Args<'a> {
+        specifier: &'a str,
+      }
+      let args = Args { specifier: &input_item.import };
+      let resolved = resolve_id(
         resolver,
         plugin_driver,
-        specifier,
+        args.specifier,
         None,
         HookResolveIdExtraOptions { is_entry: true, kind: ImportKind::Import },
-        false,
       )
-      .await
-      {
-        Ok(info) => Ok(info.map(|info| (input_item.name.clone(), info))),
-        Err(e) => Err(e),
-      }
+      .await;
+
+      resolved.map(|info| (args, info.map(|info| (input_item.name.clone(), info))))
     }))
     .await;
 
     let mut ret = Vec::with_capacity(self.input_options.input.len());
 
-    for handle in resolved_ids {
-      let handle = handle?;
-      match handle {
-        Ok((name, info)) => ret.push((name, info)),
-        Err(e) => self.errors.push(e),
+    for resolve_id in resolved_ids {
+      let (args, resolve_id) = resolve_id?;
+
+      match resolve_id {
+        Ok(item) => {
+          ret.push(item);
+        }
+        Err(e) => match e {
+          ResolveError::NotFound(..) => {
+            self.errors.push(BuildError::unresolved_entry(args.specifier, None));
+          }
+          ResolveError::PackagePathNotExported(..) => {
+            self.errors.push(BuildError::unresolved_entry(args.specifier, Some(e)));
+          }
+          _ => {
+            return Err(e.into());
+          }
+        },
       }
     }
     Ok(ret)

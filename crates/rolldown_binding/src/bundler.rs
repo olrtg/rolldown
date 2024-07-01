@@ -1,21 +1,27 @@
+use std::path::PathBuf;
+
 #[cfg(not(target_family = "wasm"))]
 use crate::worker_manager::WorkerManager;
 use crate::{
-  options::{BindingInputOptions, BindingOutputOptions},
+  options::{BindingInputOptions, BindingOnLog, BindingOutputOptions},
   parallel_js_plugin_registry::ParallelJsPluginRegistry,
-  types::binding_outputs::BindingOutputs,
+  types::{
+    binding_log::BindingLog, binding_log_level::BindingLogLevel,
+    binding_outputs::FinalBindingOutputs,
+  },
   utils::{normalize_binding_options::normalize_binding_options, try_init_custom_trace_subscriber},
 };
 use napi::{tokio::sync::Mutex, Env};
 use napi_derive::napi;
 use rolldown::Bundler as NativeBundler;
-use rolldown_error::BuildError;
-use tracing::instrument;
+use rolldown_error::{BuildError, DiagnosticOptions};
 
 #[napi]
 pub struct Bundler {
   inner: Mutex<NativeBundler>,
-  log_level: String,
+  on_log: BindingOnLog,
+  log_level: Option<BindingLogLevel>,
+  cwd: PathBuf,
 }
 
 #[napi]
@@ -30,7 +36,8 @@ impl Bundler {
   ) -> napi::Result<Self> {
     try_init_custom_trace_subscriber(env);
 
-    let log_level = input_options.log_level.take().unwrap_or_else(|| "info".to_string());
+    let log_level = input_options.log_level.take();
+    let on_log = input_options.on_log.take();
 
     #[cfg(target_family = "wasm")]
     // if we don't perform this warmup, the following call to `std::fs` will stuck
@@ -57,29 +64,33 @@ impl Bundler {
     )?;
 
     Ok(Self {
+      cwd: ret.bundler_options.cwd.clone().unwrap_or_else(|| std::env::current_dir().unwrap()),
       inner: Mutex::new(NativeBundler::with_plugins(ret.bundler_options, ret.plugins)),
       log_level,
+      on_log,
     })
   }
 
   #[napi]
-  pub async fn write(&self) -> napi::Result<BindingOutputs> {
+  #[tracing::instrument(level = "debug", skip_all)]
+  pub async fn write(&self) -> napi::Result<FinalBindingOutputs> {
     self.write_impl().await
   }
 
   #[napi]
-  pub async fn generate(&self) -> napi::Result<BindingOutputs> {
+  #[tracing::instrument(level = "debug", skip_all)]
+  pub async fn generate(&self) -> napi::Result<FinalBindingOutputs> {
     self.generate_impl().await
   }
 
   #[napi]
+  #[tracing::instrument(level = "debug", skip_all)]
   pub async fn scan(&self) -> napi::Result<()> {
     self.scan_impl().await
   }
 }
 
 impl Bundler {
-  #[instrument(skip_all)]
   #[allow(clippy::significant_drop_tightening)]
   pub async fn scan_impl(&self) -> napi::Result<()> {
     let mut bundler_core = self.inner.try_lock().map_err(|_| {
@@ -89,17 +100,16 @@ impl Bundler {
     let output = Self::handle_result(bundler_core.scan().await)?;
 
     if !output.errors.is_empty() {
-      return Err(Self::handle_errors(output.errors));
+      return Err(self.handle_errors(output.errors));
     }
 
-    self.handle_warnings(output.warnings);
+    self.handle_warnings(output.warnings).await;
 
     Ok(())
   }
 
-  #[instrument(skip_all)]
   #[allow(clippy::significant_drop_tightening)]
-  pub async fn write_impl(&self) -> napi::Result<BindingOutputs> {
+  pub async fn write_impl(&self) -> napi::Result<FinalBindingOutputs> {
     let mut bundler_core = self.inner.try_lock().map_err(|_| {
       napi::Error::from_reason("Failed to lock the bundler. Is another operation in progress?")
     })?;
@@ -107,17 +117,16 @@ impl Bundler {
     let outputs = Self::handle_result(bundler_core.write().await)?;
 
     if !outputs.errors.is_empty() {
-      return Err(Self::handle_errors(outputs.errors));
+      return Err(self.handle_errors(outputs.errors));
     }
 
-    self.handle_warnings(outputs.warnings);
+    self.handle_warnings(outputs.warnings).await;
 
-    Ok(BindingOutputs::new(outputs.assets))
+    Ok(FinalBindingOutputs::new(outputs.assets))
   }
 
-  #[instrument(skip_all)]
   #[allow(clippy::significant_drop_tightening)]
-  pub async fn generate_impl(&self) -> napi::Result<BindingOutputs> {
+  pub async fn generate_impl(&self) -> napi::Result<FinalBindingOutputs> {
     let mut bundler_core = self.inner.try_lock().map_err(|_| {
       napi::Error::from_reason("Failed to lock the bundler. Is another operation in progress?")
     })?;
@@ -125,33 +134,50 @@ impl Bundler {
     let outputs = Self::handle_result(bundler_core.generate().await)?;
 
     if !outputs.errors.is_empty() {
-      return Err(Self::handle_errors(outputs.errors));
+      return Err(self.handle_errors(outputs.errors));
     }
 
-    self.handle_warnings(outputs.warnings);
+    self.handle_warnings(outputs.warnings).await;
 
-    Ok(BindingOutputs::new(outputs.assets))
+    Ok(FinalBindingOutputs::new(outputs.assets))
   }
 
   fn handle_result<T>(result: anyhow::Result<T>) -> napi::Result<T> {
     result.map_err(|e| napi::Error::from_reason(format!("Rolldown internal error: {e}")))
   }
 
-  fn handle_errors(errs: Vec<BuildError>) -> napi::Error {
+  fn handle_errors(&self, errs: Vec<BuildError>) -> napi::Error {
     errs.into_iter().for_each(|err| {
-      eprintln!("{}", err.into_diagnostic().to_color_string());
+      eprintln!(
+        "{}",
+        err.into_diagnostic_with(&DiagnosticOptions { cwd: self.cwd.clone() }).to_color_string()
+      );
     });
     napi::Error::from_reason("Build failed")
   }
 
-  #[allow(clippy::print_stdout)]
-  fn handle_warnings(&self, warnings: Vec<BuildError>) {
-    match self.log_level.as_str() {
-      "silent" => return,
-      _ => {}
+  #[allow(clippy::print_stdout, unused_must_use)]
+  async fn handle_warnings(&self, warnings: Vec<BuildError>) {
+    if let Some(log_level) = self.log_level {
+      if log_level == BindingLogLevel::Silent {
+        return;
+      }
     }
-    warnings.into_iter().for_each(|err| {
-      println!("{}", err.into_diagnostic().to_color_string());
-    });
+
+    if let Some(on_log) = self.on_log.as_ref() {
+      for warning in warnings {
+        on_log
+          .call_async((
+            BindingLogLevel::Warn.to_string(),
+            BindingLog {
+              code: warning.kind().to_string(),
+              message: warning
+                .into_diagnostic_with(&DiagnosticOptions { cwd: self.cwd.clone() })
+                .to_color_string(),
+            },
+          ))
+          .await;
+      }
+    }
   }
 }

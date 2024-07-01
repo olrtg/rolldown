@@ -1,6 +1,7 @@
+use crate::types::js_callback::MaybeAsyncJsCallback;
+
 use super::super::types::binding_rendered_chunk::RenderedChunk;
 use super::plugin::BindingPluginOrParallelJsPluginPlaceholder;
-use crate::types::js_callback::MaybeAsyncJsCallback;
 use derivative::Derivative;
 use napi::threadsafe_function::ThreadsafeFunction;
 use napi_derive::napi;
@@ -18,14 +19,12 @@ pub struct BindingOutputOptions {
   // dynamicImportFunction: string | undefined;
   pub entry_file_names: Option<String>,
   pub chunk_file_names: Option<String>,
-
+  pub asset_file_names: Option<String>,
   // amd: NormalizedAmdOptions;
   // assetFileNames: string | ((chunkInfo: PreRenderedAsset) => string);
   #[derivative(Debug = "ignore")]
   #[serde(skip_deserializing)]
-  #[napi(
-    ts_type = "Nullable<string> | ((chunk: RenderedChunk) => MaybePromise<VoidNullable<string>>)"
-  )]
+  #[napi(ts_type = "(chunk: RenderedChunk) => MaybePromise<VoidNullable<string>>")]
   pub banner: Option<AddonOutputOption>,
   // chunkFileNames: string | ((chunkInfo: PreRenderedChunk) => string);
   // compact: boolean;
@@ -39,9 +38,7 @@ pub struct BindingOutputOptions {
   // footer: () => string | Promise<string>;
   #[derivative(Debug = "ignore")]
   #[serde(skip_deserializing)]
-  #[napi(
-    ts_type = "Nullable<string> | ((chunk: RenderedChunk) => MaybePromise<VoidNullable<string>>)"
-  )]
+  #[napi(ts_type = "(chunk: RenderedChunk) => MaybePromise<VoidNullable<string>>")]
   pub footer: Option<AddonOutputOption>,
   #[napi(ts_type = "'es' | 'cjs'")]
   pub format: Option<String>,
@@ -60,6 +57,8 @@ pub struct BindingOutputOptions {
   // noConflict: boolean;
   // outro: () => string | Promise<string>;
   // paths: OptionsPaths;
+  #[serde(skip_deserializing)]
+  #[napi(ts_type = "(BindingBuiltinPlugin | BindingPluginOptions | undefined)[]")]
   pub plugins: Vec<BindingPluginOrParallelJsPluginPlaceholder>,
   // preferConst: boolean;
   // preserveModules: boolean;
@@ -70,10 +69,15 @@ pub struct BindingOutputOptions {
   #[derivative(Debug = "ignore")]
   #[serde(skip_deserializing)]
   #[napi(ts_type = "(source: string, sourcemapPath: string) => boolean")]
-  pub sourcemap_ignore_list: Option<ThreadsafeFunction<(String, String), bool, false>>,
+  pub sourcemap_ignore_list:
+    Option<ThreadsafeFunction<(String, String), bool, (String, String), false>>,
+  #[derivative(Debug = "ignore")]
+  #[serde(skip_deserializing)]
+  #[napi(ts_type = "(source: string, sourcemapPath: string) => string")]
+  pub sourcemap_path_transform:
+    Option<ThreadsafeFunction<(String, String), String, (String, String), false>>,
   // sourcemapExcludeSources: boolean;
   // sourcemapFile: string | undefined;
-  // sourcemapPathTransform: SourcemapPathTransformOption | undefined;
   // strict: boolean;
   // systemNullSetters: boolean;
   // validate: boolean;

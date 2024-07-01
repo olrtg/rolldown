@@ -1,5 +1,6 @@
+use crate::types::diagnostic_options::DiagnosticOptions;
+
 use super::BuildEvent;
-use crate::PathExt;
 use std::path::PathBuf;
 
 #[derive(Debug)]
@@ -12,11 +13,8 @@ impl BuildEvent for UnresolvedImport {
   fn kind(&self) -> crate::event_kind::EventKind {
     crate::event_kind::EventKind::UnresolvedImport
   }
-  fn code(&self) -> &'static str {
-    "UNRESOLVED_IMPORT"
-  }
 
-  fn message(&self) -> String {
-    format!("Could not resolve {} from {}.", self.specifier, self.importer.relative_display())
+  fn message(&self, opts: &DiagnosticOptions) -> String {
+    format!("Could not resolve {} from {}.", self.specifier, opts.stabilize_path(&self.importer))
   }
 }

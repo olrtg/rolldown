@@ -1,7 +1,5 @@
-use sugar_path::SugarPath;
-
 use super::BuildEvent;
-use crate::{event_kind::EventKind, PathExt};
+use crate::{event_kind::EventKind, types::diagnostic_options::DiagnosticOptions};
 
 #[derive(Debug)]
 pub struct CircularDependency {
@@ -9,8 +7,8 @@ pub struct CircularDependency {
 }
 
 impl CircularDependency {
-  fn relative_paths(&self) -> Vec<String> {
-    self.paths.iter().map(|p| p.as_path().relative_display().into_owned()).collect::<Vec<_>>()
+  fn stable_paths(&self, opts: &DiagnosticOptions) -> Vec<String> {
+    self.paths.iter().map(|p| opts.stabilize_path(p)).collect::<Vec<_>>()
   }
 }
 
@@ -18,11 +16,8 @@ impl BuildEvent for CircularDependency {
   fn kind(&self) -> EventKind {
     EventKind::CircularDependency
   }
-  fn code(&self) -> &'static str {
-    "CIRCULAR_DEPENDENCY"
-  }
 
-  fn message(&self) -> String {
-    format!("Circular dependency: {}.", self.relative_paths().join(" -> "))
+  fn message(&self, opts: &DiagnosticOptions) -> String {
+    format!("Circular dependency: {}.", self.stable_paths(opts).join(" -> "))
   }
 }

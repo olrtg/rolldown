@@ -1,11 +1,12 @@
-use std::hash::BuildHasherDefault;
+use std::cmp::Ordering;
 
-use index_vec::IndexVec;
+use itertools::Itertools;
+use oxc::index::IndexVec;
 use rolldown_common::{Chunk, ChunkId, ChunkKind, ImportKind, ModuleId, NormalModuleId};
-use rolldown_utils::BitSet;
+use rolldown_utils::{rustc_hash::FxHashMapExt, BitSet};
 use rustc_hash::FxHashMap;
 
-use crate::{chunk_graph::ChunkGraph, type_alias::IndexChunks, utils::is_in_rust_test_mode};
+use crate::{chunk_graph::ChunkGraph, type_alias::IndexChunks};
 
 use super::GenerateStage;
 
@@ -17,6 +18,7 @@ impl<'a> GenerateStage<'a> {
     module_to_bits: &mut IndexVec<NormalModuleId, BitSet>,
   ) {
     let module = &self.link_output.module_table.normal_modules[module_id];
+    let meta = &self.link_output.metas[module_id];
 
     if !module.is_included {
       return;
@@ -31,18 +33,26 @@ impl<'a> GenerateStage<'a> {
       if let ModuleId::Normal(importee_id) = rec.resolved_module {
         // Module imported dynamically will be considered as an entry,
         // so we don't need to include it in this chunk
-        if rec.kind != ImportKind::DynamicImport {
+        if !matches!(rec.kind, ImportKind::DynamicImport) {
           self.determine_reachable_modules_for_entry(importee_id, entry_index, module_to_bits);
         }
       }
+    });
+
+    // Symbols from runtime are referenced by bundler not import statements.
+    meta.referenced_symbols_by_entry_point_chunk.iter().for_each(|symbol_ref| {
+      let canonical_ref = self.link_output.symbols.par_canonical_ref_for(*symbol_ref);
+      self.determine_reachable_modules_for_entry(canonical_ref.owner, entry_index, module_to_bits);
     });
 
     module.stmt_infos.iter().for_each(|stmt_info| {
       if !stmt_info.is_included {
         return;
       }
-      stmt_info.referenced_symbols.iter().for_each(|symbol_ref| {
-        let canonical_ref = self.link_output.symbols.par_canonical_ref_for(*symbol_ref);
+      stmt_info.referenced_symbols.iter().for_each(|reference_ref| {
+        let canonical_ref =
+          self.link_output.symbols.par_canonical_ref_for(*reference_ref.symbol_ref());
+
         self.determine_reachable_modules_for_entry(
           canonical_ref.owner,
           entry_index,
@@ -52,20 +62,19 @@ impl<'a> GenerateStage<'a> {
     });
   }
 
+  #[tracing::instrument(level = "debug", skip_all)]
   pub fn generate_chunks(&self) -> ChunkGraph {
     let entries_len: u32 =
       self.link_output.entries.len().try_into().expect("Too many entries, u32 overflowed.");
     // If we are in test environment, to make the runtime module always fall into a standalone chunk,
     // we create a facade entry point for it.
-    let entries_len = if is_in_rust_test_mode() { entries_len + 1 } else { entries_len };
 
-    let mut module_to_bits = index_vec::index_vec![BitSet::new(entries_len); self.link_output.module_table.normal_modules.len()];
-    let mut bits_to_chunk = FxHashMap::with_capacity_and_hasher(
-      self.link_output.entries.len(),
-      BuildHasherDefault::default(),
-    );
+    let mut module_to_bits = oxc::index::index_vec![BitSet::new(entries_len); self.link_output.module_table.normal_modules.len()];
+    let mut bits_to_chunk = FxHashMap::with_capacity(self.link_output.entries.len());
     let mut chunks = IndexChunks::with_capacity(self.link_output.entries.len());
-
+    let mut user_defined_entry_chunk_ids: Vec<ChunkId> = Vec::new();
+    let mut entry_module_to_entry_chunk: FxHashMap<NormalModuleId, ChunkId> =
+      FxHashMap::with_capacity(self.link_output.entries.len());
     // Create chunk for each static and dynamic entry
     for (entry_index, entry_point) in self.link_output.entries.iter().enumerate() {
       let count: u32 = entry_index.try_into().expect("Too many entries, u32 overflowed.");
@@ -83,14 +92,10 @@ impl<'a> GenerateStage<'a> {
         },
       ));
       bits_to_chunk.insert(bits, chunk);
-    }
-
-    if is_in_rust_test_mode() {
-      self.determine_reachable_modules_for_entry(
-        self.link_output.runtime.id(),
-        entries_len - 1,
-        &mut module_to_bits,
-      );
+      entry_module_to_entry_chunk.insert(entry_point.id, chunk);
+      if entry_point.kind.is_user_defined() {
+        user_defined_entry_chunk_ids.push(chunk);
+      }
     }
 
     // Determine which modules belong to which chunk. A module could belong to multiple chunks.
@@ -102,7 +107,7 @@ impl<'a> GenerateStage<'a> {
       );
     });
 
-    let mut module_to_chunk: IndexVec<NormalModuleId, Option<ChunkId>> = index_vec::index_vec![
+    let mut module_to_chunk: IndexVec<NormalModuleId, Option<ChunkId>> = oxc::index::index_vec![
       None;
       self.link_output.module_table.normal_modules.len()
     ];
@@ -117,7 +122,7 @@ impl<'a> GenerateStage<'a> {
       let bits = &module_to_bits[normal_module.id];
       debug_assert!(
         !bits.is_empty(),
-        "Empty bits means the module is not reachable, so it should bail out with `is_included: false`"
+        "Empty bits means the module is not reachable, so it should bail out with `is_included: false` {:?}", normal_module.stable_resource_id
       );
       if let Some(chunk_id) = bits_to_chunk.get(bits).copied() {
         chunks[chunk_id].modules.push(normal_module.id);
@@ -132,13 +137,69 @@ impl<'a> GenerateStage<'a> {
 
     // Sort modules in each chunk by execution order
     chunks.iter_mut().for_each(|chunk| {
-      chunk.modules.sort_by_key(|module_id| {
+      chunk.modules.sort_unstable_by_key(|module_id| {
         self.link_output.module_table.normal_modules[*module_id].exec_order
       });
     });
 
-    tracing::trace!("Generated chunks: {:#?}", chunks);
+    chunks
+      .iter_mut()
+      .sorted_by(|a, b| {
+        let a_should_be_first = Ordering::Less;
+        let b_should_be_first = Ordering::Greater;
 
-    ChunkGraph { chunks, module_to_chunk }
+        match (&a.kind, &b.kind) {
+          (
+            ChunkKind::EntryPoint { module: a_module_id, .. },
+            ChunkKind::EntryPoint { module: b_module_id, .. },
+          ) => self.link_output.module_table.normal_modules[*a_module_id]
+            .exec_order
+            .cmp(&self.link_output.module_table.normal_modules[*b_module_id].exec_order),
+          (ChunkKind::EntryPoint { module: a_module_id, .. }, ChunkKind::Common) => {
+            let a_module_exec_order =
+              self.link_output.module_table.normal_modules[*a_module_id].exec_order;
+            let b_chunk_first_module_exec_order =
+              self.link_output.module_table.normal_modules[b.modules[0]].exec_order;
+            if a_module_exec_order == b_chunk_first_module_exec_order {
+              a_should_be_first
+            } else {
+              a_module_exec_order.cmp(&b_chunk_first_module_exec_order)
+            }
+          }
+          (ChunkKind::Common, ChunkKind::EntryPoint { module: b_module_id, .. }) => {
+            let b_module_exec_order =
+              self.link_output.module_table.normal_modules[*b_module_id].exec_order;
+            let a_chunk_first_module_exec_order =
+              self.link_output.module_table.normal_modules[a.modules[0]].exec_order;
+            if a_chunk_first_module_exec_order == b_module_exec_order {
+              b_should_be_first
+            } else {
+              a_chunk_first_module_exec_order.cmp(&b_module_exec_order)
+            }
+          }
+          (ChunkKind::Common, ChunkKind::Common) => {
+            let a_chunk_first_module_exec_order =
+              self.link_output.module_table.normal_modules[a.modules[0]].exec_order;
+            let b_chunk_first_module_exec_order =
+              self.link_output.module_table.normal_modules[b.modules[0]].exec_order;
+            a_chunk_first_module_exec_order.cmp(&b_chunk_first_module_exec_order)
+          }
+        }
+      })
+      .enumerate()
+      .for_each(|(i, chunk)| {
+        chunk.exec_order = i.try_into().expect("Too many chunks, u32 overflowed.");
+      });
+
+    let sorted_chunk_ids =
+      chunks.indices().sorted_by_key(|id| &chunks[*id].bits).collect::<Vec<_>>();
+
+    ChunkGraph {
+      chunks,
+      sorted_chunk_ids,
+      module_to_chunk,
+      entry_module_to_entry_chunk,
+      user_defined_entry_chunk_ids,
+    }
   }
 }

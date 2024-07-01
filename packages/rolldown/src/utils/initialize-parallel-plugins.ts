@@ -1,7 +1,8 @@
 import { Worker } from 'node:worker_threads'
 import { availableParallelism } from 'node:os'
-import { ParallelPlugin, Plugin } from '../plugin'
+import type { ParallelPlugin, Plugin } from '../plugin'
 import { ParallelJsPluginRegistry } from '../binding'
+import { BuiltinPlugin } from '../plugin/bindingify-builtin-plugin'
 
 export type WorkerData = {
   registryId: number
@@ -16,7 +17,7 @@ type ParallelPluginInfo = {
 }
 
 export async function initializeParallelPlugins(
-  plugins: (Plugin | ParallelPlugin)[],
+  plugins: (Plugin | ParallelPlugin | BuiltinPlugin)[],
 ) {
   const pluginInfos: ParallelPluginInfo[] = []
   for (const [index, plugin] of plugins.entries()) {
@@ -59,14 +60,28 @@ async function initializeWorker(
   threadNumber: number,
 ) {
   const urlString = import.meta.resolve('#parallel-plugin-worker')
-  const worker = new Worker(new URL(urlString), {
-    workerData: { registryId, pluginInfos, threadNumber } satisfies WorkerData,
-  })
-  worker.unref()
-  await new Promise<void>((resolve) => {
-    worker.once('message', async () => {
-      resolve()
+  const workerData: WorkerData = {
+    registryId,
+    pluginInfos,
+    threadNumber,
+  }
+
+  let worker: Worker | undefined
+  try {
+    worker = new Worker(new URL(urlString), { workerData })
+    worker.unref()
+    await new Promise<void>((resolve, reject) => {
+      worker!.once('message', async (message) => {
+        if (message.type === 'error') {
+          reject(message.error)
+        } else {
+          resolve()
+        }
+      })
     })
-  })
-  return worker
+    return worker
+  } catch (e) {
+    worker?.terminate()
+    throw e
+  }
 }

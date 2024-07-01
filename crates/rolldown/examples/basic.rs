@@ -1,14 +1,10 @@
 use rolldown::{Bundler, BundlerOptions, InputItem, SourceMapType};
-use std::path::PathBuf;
+use rolldown_testing::workspace;
 use sugar_path::SugarPath;
 
 #[tokio::main]
 async fn main() {
-  rolldown_tracing::try_init_tracing();
-  let root = PathBuf::from(
-    &std::env::var("CARGO_MANIFEST_DIR")
-      .unwrap_or(std::env::current_dir().unwrap().display().to_string()),
-  );
+  let root = workspace::crate_dir("rolldown");
   let cwd = root.join("./examples").normalize();
   let mut bundler = Bundler::new(BundlerOptions {
     input: Some(vec![
@@ -22,5 +18,4 @@ async fn main() {
 
   let result = bundler.write().await.unwrap();
   assert!(result.errors.is_empty(), "failed to bundle: {:?}", result.errors);
-  // println!("{outputs:#?}");
 }

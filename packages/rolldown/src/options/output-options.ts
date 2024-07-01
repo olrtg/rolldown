@@ -1,97 +1,55 @@
-import { OutputOptions as RollupOutputOptions } from '../rollup-types'
-import { BindingOutputOptions } from '../binding'
-import { unimplemented } from '../utils'
+import type { RenderedChunk } from '../binding'
+import { z } from 'zod'
+import * as zodExt from '../utils/zod-ext'
 
-export interface OutputOptions {
-  dir?: RollupOutputOptions['dir']
-  format?: 'es'
-  exports?: RollupOutputOptions['exports']
-  sourcemap?: RollupOutputOptions['sourcemap']
-  sourcemapIgnoreList?: RollupOutputOptions['sourcemapIgnoreList']
-  banner?: RollupOutputOptions['banner']
-  footer?: RollupOutputOptions['footer']
-  entryFileNames?: string
-  chunkFileNames?: string
-}
+const ModuleFormatSchema = z
+  .literal('es')
+  .or(z.literal('cjs'))
+  .or(z.literal('esm'))
+  .or(z.literal('module'))
+  .or(z.literal('commonjs'))
+  .optional()
 
-export type NormalizedOutputOptions = BindingOutputOptions
+const addonFunctionSchema = z
+  .function()
+  .args(zodExt.phantom<RenderedChunk>())
+  .returns(z.string().or(z.promise(z.string())))
 
-function normalizeFormat(
-  format: OutputOptions['format'],
-): BindingOutputOptions['format'] {
-  if (format == null || format === 'es' || format === 'cjs') {
-    return format
-  } else {
-    return unimplemented(`output.format: ${format}`)
-  }
-}
+const outputOptionsSchema = z.strictObject({
+  dir: z.string().optional(),
+  exports: z.literal('named').optional(),
+  format: ModuleFormatSchema,
+  sourcemap: z
+    .boolean()
+    .or(z.literal('inline'))
+    .or(z.literal('hidden'))
+    .optional(),
+  sourcemapIgnoreList: z
+    .boolean()
+    .or(zodExt.phantom<SourcemapIgnoreListOption>())
+    .optional(),
+  sourcemapPathTransform: zodExt
+    .phantom<SourcemapPathTransformOption>()
+    .optional(),
+  banner: z.string().or(addonFunctionSchema).optional(),
+  footer: z.string().or(addonFunctionSchema).optional(),
+  entryFileNames: z.string().optional(),
+  chunkFileNames: z.string().optional(),
+  assetFileNames: z.string().optional(),
+})
 
-function normalizeSourcemap(
-  sourcemap: OutputOptions['sourcemap'],
-): BindingOutputOptions['sourcemap'] {
-  switch (sourcemap) {
-    case true:
-      return 'file'
+export type OutputOptions = z.infer<typeof outputOptionsSchema>
 
-    case 'inline':
-      return 'inline'
+export type SourcemapIgnoreListOption = (
+  relativeSourcePath: string,
+  sourcemapPath: string,
+) => boolean
 
-    case false:
-    case undefined:
-    case 'hidden':
-      return 'hidden'
+export type SourcemapPathTransformOption = (
+  relativeSourcePath: string,
+  sourcemapPath: string,
+) => string
 
-    default:
-      throw new Error(`unknown sourcemap: ${sourcemap}`)
-  }
-}
+type AddonFunction = (chunk: RenderedChunk) => string | Promise<string>
 
-function normalizeSourcemapIgnoreList(
-  sourcemapIgnoreList: OutputOptions['sourcemapIgnoreList'],
-): BindingOutputOptions['sourcemapIgnoreList'] {
-  return typeof sourcemapIgnoreList === 'function'
-    ? sourcemapIgnoreList
-    : sourcemapIgnoreList === false
-      ? () => false
-      : (relativeSourcePath: string, sourcemapPath: string) =>
-          relativeSourcePath.includes('node_modules')
-}
-
-const getAddon = <T extends 'banner' | 'footer'>(
-  config: OutputOptions,
-  name: T,
-): BindingOutputOptions[T] => {
-  const configAddon = config[name]
-  if (configAddon === undefined) return undefined
-  if (typeof configAddon === 'function') {
-    return configAddon as BindingOutputOptions[T]
-  }
-  return () => configAddon || ''
-}
-
-export function normalizeOutputOptions(
-  opts: OutputOptions,
-): BindingOutputOptions {
-  const {
-    dir,
-    format,
-    exports,
-    sourcemap,
-    sourcemapIgnoreList,
-    entryFileNames,
-    chunkFileNames,
-  } = opts
-  return {
-    dir: dir,
-    format: normalizeFormat(format),
-    exports,
-    sourcemap: normalizeSourcemap(sourcemap),
-    sourcemapIgnoreList: normalizeSourcemapIgnoreList(sourcemapIgnoreList),
-    // TODO(sapphi-red): support parallel plugins
-    plugins: [],
-    banner: getAddon(opts, 'banner'),
-    footer: getAddon(opts, 'footer'),
-    entryFileNames,
-    chunkFileNames,
-  }
-}
+export type ModuleFormat = z.infer<typeof ModuleFormatSchema>

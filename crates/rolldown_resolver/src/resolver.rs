@@ -1,21 +1,28 @@
-use rolldown_common::{ImportKind, ModuleType, Platform, ResolveOptions, ResolvedPath};
-use rolldown_error::{BuildError, BuildResult};
-use rolldown_fs::FileSystem;
-use std::path::{Path, PathBuf};
+use dashmap::DashMap;
+use itertools::Itertools;
+use rolldown_common::{
+  ImportKind, ModuleDefFormat, PackageJson, Platform, ResolveOptions, ResolvedPath,
+};
+use rolldown_fs::{FileSystem, OsFileSystem};
+use std::{
+  path::{Path, PathBuf},
+  sync::Arc,
+};
 use sugar_path::SugarPath;
 
 use oxc_resolver::{
-  EnforceExtension, Resolution, ResolveError, ResolveOptions as OxcResolverOptions,
-  ResolverGeneric, TsconfigOptions,
+  EnforceExtension, PackageJson as OxcPackageJson, Resolution, ResolveError,
+  ResolveOptions as OxcResolverOptions, ResolverGeneric, TsconfigOptions,
 };
 
 #[derive(Debug)]
 #[allow(dead_code)]
-pub struct Resolver<T: FileSystem + Default> {
+pub struct Resolver<T: FileSystem + Default = OsFileSystem> {
   cwd: PathBuf,
   default_resolver: ResolverGeneric<T>,
   import_resolver: ResolverGeneric<T>,
   require_resolver: ResolverGeneric<T>,
+  package_json_cache: DashMap<PathBuf, Arc<PackageJson>>,
 }
 
 impl<F: FileSystem + Default> Resolver<F> {
@@ -34,11 +41,11 @@ impl<F: FileSystem + Default> Resolver<F> {
       }
       Platform::Neutral => {}
     }
-    default_conditions.dedup();
+    default_conditions = default_conditions.into_iter().unique().collect();
     import_conditions.extend(default_conditions.clone());
     require_conditions.extend(default_conditions.clone());
-    import_conditions.dedup();
-    require_conditions.dedup();
+    import_conditions = import_conditions.into_iter().unique().collect();
+    require_conditions = require_conditions.into_iter().unique().collect();
 
     let main_fields = raw_resolve.main_fields.clone().unwrap_or_else(|| match platform {
       Platform::Node => {
@@ -48,10 +55,23 @@ impl<F: FileSystem + Default> Resolver<F> {
       Platform::Neutral => vec![],
     });
 
+    let alias_fields = raw_resolve.alias_fields.clone().unwrap_or_else(|| match platform {
+      Platform::Browser => vec![vec!["browser".to_string()]],
+      _ => vec![],
+    });
+
+    let builtin_modules = match platform {
+      Platform::Node => true,
+      Platform::Browser | Platform::Neutral => false,
+    };
+
     let resolve_options_with_default_conditions = OxcResolverOptions {
-      tsconfig: raw_resolve.tsconfig_filename.map(|p| TsconfigOptions {
-        config_file: p.into(),
-        references: oxc_resolver::TsconfigReferences::Disabled,
+      tsconfig: raw_resolve.tsconfig_filename.map(|p| {
+        let path = PathBuf::from(&p);
+        TsconfigOptions {
+          config_file: if path.is_relative() { cwd.join(path) } else { path },
+          references: oxc_resolver::TsconfigReferences::Disabled,
+        }
       }),
       alias: raw_resolve
         .alias
@@ -64,7 +84,8 @@ impl<F: FileSystem + Default> Resolver<F> {
             .collect::<Vec<_>>()
         })
         .unwrap_or_default(),
-      alias_fields: raw_resolve.alias_fields.unwrap_or_default(),
+      imports_fields: vec![vec!["imports".to_string()]],
+      alias_fields,
       condition_names: default_conditions,
       description_files: vec!["package.json".to_string()],
       enforce_extension: EnforceExtension::Auto,
@@ -72,9 +93,9 @@ impl<F: FileSystem + Default> Resolver<F> {
         .exports_fields
         .unwrap_or_else(|| vec![vec!["exports".to_string()]]),
       extension_alias: vec![],
-      extensions: raw_resolve
-        .extensions
-        .unwrap_or_else(|| [".jsx", ".js"].into_iter().map(str::to_string).collect()),
+      extensions: raw_resolve.extensions.unwrap_or_else(|| {
+        [".jsx", ".js", ".ts", ".tsx"].into_iter().map(str::to_string).collect()
+      }),
       fallback: vec![],
       fully_specified: false,
       main_fields,
@@ -86,7 +107,7 @@ impl<F: FileSystem + Default> Resolver<F> {
       restrictions: vec![],
       roots: vec![],
       symlinks: raw_resolve.symlinks.unwrap_or(true),
-      builtin_modules: false,
+      builtin_modules,
     };
     let resolve_options_with_import_conditions = OxcResolverOptions {
       condition_names: import_conditions,
@@ -103,7 +124,13 @@ impl<F: FileSystem + Default> Resolver<F> {
     let require_resolver =
       default_resolver.clone_with_options(resolve_options_with_require_conditions);
 
-    Self { cwd, default_resolver, import_resolver, require_resolver }
+    Self {
+      cwd,
+      default_resolver,
+      import_resolver,
+      require_resolver,
+      package_json_cache: DashMap::default(),
+    }
   }
 
   pub fn cwd(&self) -> &PathBuf {
@@ -112,25 +139,24 @@ impl<F: FileSystem + Default> Resolver<F> {
 }
 
 #[derive(Debug)]
-pub struct ResolveRet {
-  pub resolved: ResolvedPath,
-  pub module_type: ModuleType,
+pub struct ResolveReturn {
+  pub path: ResolvedPath,
+  pub module_type: ModuleDefFormat,
+  pub package_json: Option<Arc<PackageJson>>,
 }
 
 impl<F: FileSystem + Default> Resolver<F> {
-  // clippy::option_if_let_else: I think the current code is more readable.
-  #[allow(clippy::missing_errors_doc, clippy::option_if_let_else)]
   pub fn resolve(
     &self,
     importer: Option<&Path>,
     specifier: &str,
     import_kind: ImportKind,
-  ) -> BuildResult<ResolveRet> {
+  ) -> anyhow::Result<Result<ResolveReturn, ResolveError>> {
     let selected_resolver = match import_kind {
       ImportKind::Import | ImportKind::DynamicImport => &self.import_resolver,
       ImportKind::Require => &self.require_resolver,
     };
-    let resolved = if let Some(importer) = importer {
+    let resolution = if let Some(importer) = importer {
       let context = importer.parent().expect("Should have a parent dir");
       selected_resolver.resolve(context, specifier)
     } else {
@@ -143,63 +169,79 @@ impl<F: FileSystem + Default> Resolver<F> {
 
       let is_path_like = specifier.starts_with('.') || specifier.starts_with('/');
 
-      let resolved = selected_resolver.resolve(&self.cwd, joined_specifier.to_str().unwrap());
-      if resolved.is_ok() {
-        resolved
+      let resolution = selected_resolver.resolve(&self.cwd, joined_specifier.to_str().unwrap());
+      if resolution.is_ok() {
+        resolution
       } else if !is_path_like {
         // If the specifier is not path-like, we should try to resolve it as a bare specifier. This allows us to resolve modules from node_modules.
         selected_resolver.resolve(&self.cwd, specifier)
       } else {
-        resolved
+        resolution
       }
     };
-    resolved
-      // If result type parsing is correct
-      .map(|info| {
-        build_resolve_ret(
-          info.full_path().to_str().expect("should be valid utf8").to_string(),
+
+    match resolution {
+      Ok(info) => {
+        let package_json = info.package_json().map(|p| self.cached_package_json(p));
+        let module_type = calc_module_type(&info);
+        Ok(Ok(build_resolve_ret(
+          info.full_path().to_str().expect("Should be valid utf8").to_string(),
           false,
-          calc_module_type(&info),
-        )
-      })
-      .or_else(|err| match err {
-        // If the error type is ignore
-        ResolveError::Ignored(path) => Ok(build_resolve_ret(
-          path.to_str().expect("should be valid utf8").to_string(),
+          module_type,
+          package_json,
+        )))
+      }
+      Err(err) => match err {
+        ResolveError::Ignored(p) => Ok(Ok(build_resolve_ret(
+          p.to_str().expect("Should be valid utf8").to_string(),
           true,
-          ModuleType::CJS,
-        )),
-        // To determine whether there is an importer.
-        _ => {
-          if let Some(importer) = importer {
-            Err(BuildError::unresolved_import(specifier.to_string(), importer).with_source(err))
-          } else {
-            Err(BuildError::unresolved_entry(specifier).with_source(err))
-          }
-        }
-      })
+          ModuleDefFormat::Unknown,
+          None,
+        ))),
+        _ => Ok(Err(err)),
+      },
+    }
+  }
+
+  fn cached_package_json(&self, oxc_pkg_json: &OxcPackageJson) -> Arc<PackageJson> {
+    if let Some(v) = self.package_json_cache.get(&oxc_pkg_json.realpath) {
+      Arc::clone(v.value())
+    } else {
+      let pkg_json = Arc::new(
+        PackageJson::new(oxc_pkg_json.path.clone())
+          .with_type(oxc_pkg_json.r#type.as_ref())
+          .with_side_effects(oxc_pkg_json.side_effects.as_ref()),
+      );
+      self.package_json_cache.insert(oxc_pkg_json.realpath.clone(), Arc::clone(&pkg_json));
+      pkg_json
+    }
   }
 }
 
-fn calc_module_type(info: &Resolution) -> ModuleType {
+fn calc_module_type(info: &Resolution) -> ModuleDefFormat {
   if let Some(extension) = info.path().extension() {
     if extension == "mjs" {
-      return ModuleType::EsmMjs;
+      return ModuleDefFormat::EsmMjs;
     } else if extension == "cjs" {
-      return ModuleType::CJS;
+      return ModuleDefFormat::CJS;
     }
   }
   if let Some(package_json) = info.package_json() {
-    let type_value = package_json.raw_json().get("type").and_then(|v| v.as_str());
+    let type_value = package_json.r#type.as_ref().and_then(|v| v.as_str());
     if type_value == Some("module") {
-      return ModuleType::EsmPackageJson;
+      return ModuleDefFormat::EsmPackageJson;
     } else if type_value == Some("commonjs") {
-      return ModuleType::CjsPackageJson;
+      return ModuleDefFormat::CjsPackageJson;
     }
   }
-  ModuleType::Unknown
+  ModuleDefFormat::Unknown
 }
 
-fn build_resolve_ret(path: String, ignored: bool, module_type: ModuleType) -> ResolveRet {
-  ResolveRet { resolved: ResolvedPath { path: path.into(), ignored }, module_type }
+fn build_resolve_ret(
+  path: String,
+  ignored: bool,
+  module_type: ModuleDefFormat,
+  package_json: Option<Arc<PackageJson>>,
+) -> ResolveReturn {
+  ResolveReturn { path: ResolvedPath { path: path.into(), ignored }, module_type, package_json }
 }

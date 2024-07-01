@@ -8,7 +8,7 @@ input_file: crates/rolldown/tests/esbuild/import_star/re_export_other_file_expor
 ## CIRCULAR_DEPENDENCY
 
 ```text
-[CIRCULAR_DEPENDENCY] Warning: Circular dependency: tests/esbuild/import_star/re_export_other_file_export_self_as_namespace_es6/foo.js -> tests/esbuild/import_star/re_export_other_file_export_self_as_namespace_es6/foo.js.
+[CIRCULAR_DEPENDENCY] Warning: Circular dependency: foo.js -> foo.js.
 
 ```
 # Assets
@@ -16,15 +16,16 @@ input_file: crates/rolldown/tests/esbuild/import_star/re_export_other_file_expor
 ## entry_js.mjs
 
 ```js
-import { __export } from "./$runtime$.mjs";
 
-// foo.js
+
+//#region foo.js
 var foo_ns = {};
 __export(foo_ns, {
-	foo:() => foo,
-	ns:() => foo_ns
+	foo: () => foo,
+	ns: () => foo_ns
 });
 const foo = 123;
 
+//#endregion
 export { foo, foo_ns as ns };
 ```

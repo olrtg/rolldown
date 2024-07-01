@@ -1,7 +1,5 @@
 use schemars::JsonSchema;
 use serde::Deserialize;
-use std::fs;
-use std::path::Path;
 
 #[derive(Deserialize, JsonSchema, Default)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -10,7 +8,7 @@ pub struct TestConfig {
   #[serde(default)]
   pub config: rolldown_common::BundlerOptions,
   #[serde(default = "true_by_default")]
-  /// If `false`, the compiled artifacts won't be executed.
+  /// If `false`, the compiled artifacts won't be executed, but `_test.mjs` will be still executed if exists.
   pub expect_executed: bool,
   #[serde(default)]
   /// If `true`, the fixture are expected to fail to compile/build.
@@ -24,16 +22,11 @@ pub struct TestConfig {
   #[serde(default)]
   /// If `true`, the sourcemap visualizer will be snapshot.
   pub visualize_sourcemap: bool,
+  #[serde(default = "true_by_default")]
+  /// Default is `true`. If `false`, the runtime module will not be hidden.
+  pub hidden_runtime_module: bool,
 }
 
 fn true_by_default() -> bool {
   true
-}
-
-impl TestConfig {
-  pub fn from_config_path(filepath: &Path) -> Self {
-    let config_str =
-      fs::read_to_string(filepath).unwrap_or_else(|e| panic!("Failed to read config file: {e:?}"));
-    serde_json::from_str(&config_str).expect("Failed to parse test config file")
-  }
 }

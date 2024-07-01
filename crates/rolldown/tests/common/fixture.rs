@@ -4,8 +4,8 @@ use std::{
   process::Command,
 };
 
-use rolldown::{BundleOutput, Bundler, SourceMapType};
-use rolldown_testing::TestConfig;
+use rolldown::{BundleOutput, Bundler, IsExternal, OutputFormat, SourceMapType};
+use rolldown_testing::test_config::{read_test_config, TestConfig};
 
 fn default_test_input_item() -> rolldown::InputItem {
   rolldown::InputItem { name: Some("main".to_string()), import: "./main.js".to_string() }
@@ -35,40 +35,56 @@ impl Fixture {
   }
 
   pub fn test_config(&self) -> TestConfig {
-    TestConfig::from_config_path(&self.config_path())
+    read_test_config(&self.config_path())
   }
 
   pub fn exec(&self) {
     let test_config = self.test_config();
 
-    if !test_config.expect_executed || test_config.expect_error {
-      return;
-    }
-
-    let dist_folder = self.dir_path().join("dist");
-    let test_script = self.dir_path().join("_test.mjs");
-
-    let compiled_entries = test_config
-      .config
-      .input
-      .unwrap_or_else(|| vec![default_test_input_item()])
-      .iter()
-      .map(|item| {
-        format!("{}.mjs", item.name.clone().expect("inputs must have `name` in `_config.json`"))
-      })
-      .map(|name| dist_folder.join(name))
-      .collect::<Vec<_>>();
-
     let mut command = Command::new("node");
-    compiled_entries.iter().for_each(|entry| {
-      command.arg("--import");
-      if cfg!(target_os = "windows") {
-        // Only URLs with a scheme in: file, data, and node are supported by the default ESM loader. On Windows, absolute paths must be valid file:// URLs.
-        command.arg(format!("file://{}", entry.to_str().expect("should be valid utf8")));
-      } else {
-        command.arg(entry);
-      }
-    });
+
+    let is_output_cjs = matches!(test_config.config.format, Some(OutputFormat::Cjs));
+
+    let test_script = if is_output_cjs {
+      self.dir_path().join("_test.cjs")
+    } else {
+      self.dir_path().join("_test.mjs")
+    };
+
+    if !test_config.expect_executed || test_config.expect_error {
+      // do nothing
+    } else {
+      // Notices, we now don't have the finalized `dir` value, so we assume the `dist` folder is the output folder. But this cause
+      // problem once `entry_filenames` or `dir` is configured using a different folder.
+      let dist_folder = self.dir_path().join("dist");
+
+      let compiled_entries = test_config
+        .config
+        .input
+        .unwrap_or_else(|| vec![default_test_input_item()])
+        .iter()
+        .map(|item| {
+          let name = item.name.clone().expect("inputs must have `name` in `_config.json`");
+          let ext = if is_output_cjs { "cjs" } else { "mjs" };
+          format!("{name}.{ext}",)
+        })
+        .map(|name| dist_folder.join(name))
+        .collect::<Vec<_>>();
+
+      compiled_entries.iter().for_each(|entry| {
+        if is_output_cjs {
+          command.arg("--require");
+        } else {
+          command.arg("--import");
+        }
+        if cfg!(target_os = "windows") && !is_output_cjs {
+          // Only URLs with a scheme in: file, data, and node are supported by the default ESM loader. On Windows, absolute paths must be valid file:// URLs.
+          command.arg(format!("file://{}", entry.to_str().expect("should be valid utf8")));
+        } else {
+          command.arg(entry);
+        }
+      });
+    }
 
     if test_script.exists() {
       command.arg(test_script);
@@ -89,11 +105,14 @@ impl Fixture {
     }
   }
 
-  pub async fn compile(&mut self) -> BundleOutput {
+  pub async fn bundle(&mut self, write_to_disk: bool, with_hash: bool) -> BundleOutput {
     let fixture_path = self.dir_path();
     let test_config = self.test_config();
 
     let mut bundle_options = self.test_config().config;
+    if bundle_options.external.is_none() {
+      bundle_options.external = Some(IsExternal::from_vec(vec!["node:assert".to_string()]));
+    }
 
     if bundle_options.input.is_none() {
       bundle_options.input = Some(vec![default_test_input_item()]);
@@ -103,11 +122,25 @@ impl Fixture {
       bundle_options.cwd = Some(fixture_path.to_path_buf());
     }
 
-    if bundle_options.entry_file_names.is_none() {
-      bundle_options.entry_file_names = Some("[name].mjs".to_string());
+    let output_ext = match bundle_options.format {
+      Some(OutputFormat::Cjs) => "cjs",
+      _ => "mjs",
+    };
+
+    if bundle_options.entry_filenames.is_none() {
+      if with_hash {
+        bundle_options.entry_filenames = Some(format!("[name]-[hash].{output_ext}"));
+      } else {
+        bundle_options.entry_filenames = Some(format!("[name].{output_ext}"));
+      }
     }
-    if bundle_options.chunk_file_names.is_none() {
-      bundle_options.chunk_file_names = Some("[name].mjs".to_string());
+
+    if bundle_options.chunk_filenames.is_none() {
+      if with_hash {
+        bundle_options.chunk_filenames = Some(format!("[name]-[hash].{output_ext}"));
+      } else {
+        bundle_options.chunk_filenames = Some(format!("[name].{output_ext}"));
+      }
     }
 
     if test_config.visualize_sourcemap {
@@ -123,10 +156,13 @@ impl Fixture {
 
     let mut bundler = Bundler::new(bundle_options);
 
-    if fixture_path.join("dist").is_dir() {
+    if write_to_disk && fixture_path.join("dist").is_dir() {
       std::fs::remove_dir_all(fixture_path.join("dist")).unwrap();
     }
-
-    bundler.write().await.unwrap()
+    if write_to_disk {
+      bundler.write().await.unwrap()
+    } else {
+      bundler.generate().await.unwrap()
+    }
   }
 }

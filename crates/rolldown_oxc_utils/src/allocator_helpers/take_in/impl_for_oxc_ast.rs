@@ -2,9 +2,9 @@ use std::cell::Cell;
 
 use oxc::{
   allocator::{Allocator, Box},
-  ast::ast::{self, Modifiers},
+  ast::ast,
   semantic::ReferenceFlag,
-  span::{Atom, SourceType},
+  span::{Atom, SourceType, SPAN},
 };
 
 use super::TakeIn;
@@ -26,7 +26,7 @@ impl<'ast> TakeIn<'ast> for ast::VariableDeclaration<'ast> {
       span: TakeIn::dummy(alloc),
       kind: TakeIn::dummy(alloc),
       declarations: TakeIn::dummy(alloc),
-      modifiers: Modifiers::default(),
+      declare: TakeIn::dummy(alloc),
     }
   }
 }
@@ -72,11 +72,6 @@ impl<'ast> TakeIn<'ast> for ast::ClassType {
     Self::ClassDeclaration
   }
 }
-impl<'ast> TakeIn<'ast> for ast::Modifiers<'ast> {
-  fn dummy(_alloc: &'ast Allocator) -> Self {
-    Self::empty()
-  }
-}
 impl<'ast> TakeIn<'ast> for ast::Class<'ast> {
   fn dummy(alloc: &'ast Allocator) -> Self {
     Self {
@@ -89,7 +84,9 @@ impl<'ast> TakeIn<'ast> for ast::Class<'ast> {
       super_type_parameters: TakeIn::dummy(alloc),
       implements: TakeIn::dummy(alloc),
       decorators: TakeIn::dummy(alloc),
-      modifiers: TakeIn::dummy(alloc),
+      r#abstract: TakeIn::dummy(alloc),
+      declare: TakeIn::dummy(alloc),
+      scope_id: Cell::default(),
     }
   }
 }
@@ -101,12 +98,13 @@ impl<'ast> TakeIn<'ast> for ast::Function<'ast> {
       id: TakeIn::dummy(alloc),
       generator: TakeIn::dummy(alloc),
       r#async: TakeIn::dummy(alloc),
+      declare: TakeIn::dummy(alloc),
       params: TakeIn::dummy(alloc),
       body: TakeIn::dummy(alloc),
       type_parameters: TakeIn::dummy(alloc),
       return_type: TakeIn::dummy(alloc),
-      modifiers: Modifiers::default(),
       this_param: TakeIn::dummy(alloc),
+      scope_id: Cell::default(),
     }
   }
 }
@@ -152,6 +150,7 @@ impl<'ast> TakeIn<'ast> for ast::Program<'ast> {
       directives: TakeIn::dummy(alloc),
       hashbang: TakeIn::dummy(alloc),
       body: TakeIn::dummy(alloc),
+      scope_id: Cell::default(),
     }
   }
 }
@@ -218,6 +217,7 @@ impl<'ast> TakeIn<'ast> for ast::ArrowFunctionExpression<'ast> {
       body: TakeIn::dummy(alloc),
       type_parameters: TakeIn::dummy(alloc),
       return_type: TakeIn::dummy(alloc),
+      scope_id: Cell::default(),
     }
   }
 }
@@ -270,7 +270,7 @@ impl<'ast> TakeIn<'ast> for ast::AssignmentExpression<'ast> {
 
 impl<'ast> TakeIn<'ast> for ast::AssignmentTarget<'ast> {
   fn dummy(alloc: &'ast Allocator) -> Self {
-    Self::SimpleAssignmentTarget(TakeIn::dummy(alloc))
+    Self::AssignmentTargetIdentifier(TakeIn::dummy(alloc))
   }
 }
 
@@ -356,6 +356,51 @@ impl<'ast> TakeIn<'ast> for ast::UnaryExpression<'ast> {
       span: TakeIn::dummy(alloc),
       operator: TakeIn::dummy(alloc),
       argument: TakeIn::dummy(alloc),
+    }
+  }
+}
+
+impl<'ast> TakeIn<'ast> for ast::StringLiteral<'ast> {
+  fn dummy(alloc: &'ast Allocator) -> Self {
+    Self { span: TakeIn::dummy(alloc), value: TakeIn::dummy(alloc) }
+  }
+}
+impl<'ast> TakeIn<'ast> for ast::ImportOrExportKind {
+  fn dummy(_alloc: &'ast Allocator) -> Self {
+    Self::Value
+  }
+}
+
+impl<'ast> TakeIn<'ast> for ast::ImportDeclaration<'ast> {
+  fn dummy(alloc: &'ast Allocator) -> Self {
+    Self {
+      span: TakeIn::dummy(alloc),
+      specifiers: TakeIn::dummy(alloc),
+      source: TakeIn::dummy(alloc),
+      with_clause: TakeIn::dummy(alloc),
+      import_kind: TakeIn::dummy(alloc),
+    }
+  }
+}
+
+impl<'ast> TakeIn<'ast> for ast::ObjectPattern<'ast> {
+  fn dummy(alloc: &'ast Allocator) -> Self {
+    Self {
+      span: TakeIn::dummy(alloc),
+      properties: TakeIn::dummy(alloc),
+      rest: TakeIn::dummy(alloc),
+    }
+  }
+}
+
+impl<'ast> TakeIn<'ast> for ast::BindingProperty<'ast> {
+  fn dummy(alloc: &'ast Allocator) -> Self {
+    Self {
+      span: SPAN,
+      key: TakeIn::dummy(alloc),
+      value: TakeIn::dummy(alloc),
+      shorthand: TakeIn::dummy(alloc),
+      computed: TakeIn::dummy(alloc),
     }
   }
 }

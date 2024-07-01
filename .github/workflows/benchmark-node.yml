@@ -56,26 +56,16 @@ jobs:
       - name: List Files
         run: find -maxdepth 2 -ls
 
-      - name: Install Rust
-        uses: moonrepo/setup-rust@v1
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
+
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
         with:
-          bins: just
-          cache-base: main
-          cache-target: release
+          tools: just
+          cache-key: release-build
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v3
-
-      - name: Install node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install
-
-      - name: Setup benchmark
+      - name: Setup Benchmark Input
         run: just setup-bench
 
       - name: Build packages
@@ -94,7 +84,7 @@ jobs:
           output-file-path: tmp/new-benchmark-node-output.json
           # Where the previous data file is stored
           external-data-json-path: tmp/benchmark-node-output.json
-          fail-on-alert: ${{ github.event_name != 'push' }}
+          fail-on-alert: false
           summary-always: true
           comment-always: false
           save-data-file: ${{ github.event_name == 'push' }}

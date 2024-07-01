@@ -1,3 +1,173 @@
+## [0.10.5](https://github.com/rolldown/rolldown/compare/v0.10.4...v0.10.5) (2024-06-27)
+
+
+### Bug Fixes
+
+* `forbid_const_assign_when_lowering_using` test ([#1413](https://github.com/rolldown/rolldown/issues/1413)) ([0d15f0e](https://github.com/rolldown/rolldown/commit/0d15f0e6d55192b1ac763e069b7b01f508a8c776))
+* **cjs:** handle `export * from 'external'` correctly ([#1363](https://github.com/rolldown/rolldown/issues/1363)) ([9dbb803](https://github.com/rolldown/rolldown/commit/9dbb80346b075d36b2be379cf86ed6652dd7470f))
+* **cjs:** should not panic if wrapped esm module `export * from 'external'` ([#1450](https://github.com/rolldown/rolldown/issues/1450)) ([c62a512](https://github.com/rolldown/rolldown/commit/c62a51255e4ea0689300b14310b5c50655675fa2))
+* **core:** don't panic on require calls that are invalid to bundler ([#1445](https://github.com/rolldown/rolldown/issues/1445)) ([5fb31d0](https://github.com/rolldown/rolldown/commit/5fb31d0d254128825df9441b23da58e3f6663060))
+* **deps:** update dependency @codemirror/view to v6.27.0 ([#1347](https://github.com/rolldown/rolldown/issues/1347)) ([c6e1937](https://github.com/rolldown/rolldown/commit/c6e1937f867f40a58c740ee4b3e472076bf4a79f))
+* **deps:** update dependency @rollup/plugin-commonjs to v26 ([#1353](https://github.com/rolldown/rolldown/issues/1353)) ([7dbbfbc](https://github.com/rolldown/rolldown/commit/7dbbfbc2dd53c9583742957dc9a00dd7c8080961))
+* **docs:** update requirement of node version in contribution guide ([#1345](https://github.com/rolldown/rolldown/issues/1345)) ([0d979b6](https://github.com/rolldown/rolldown/commit/0d979b60ec2f0ef6977031f030942cf387c76bda))
+* export some typing ([#1405](https://github.com/rolldown/rolldown/issues/1405)) ([c42f7b3](https://github.com/rolldown/rolldown/commit/c42f7b373c3d8b85d7dd4f1549605ff99a1426ae))
+* option hook can be async and can return overwritten input options ([#1422](https://github.com/rolldown/rolldown/issues/1422)) ([38a2c3e](https://github.com/rolldown/rolldown/commit/38a2c3e6a9d782efdea45a71d15cae589647ea37))
+* outputOptions hook argument should be OutputOptions ([#1430](https://github.com/rolldown/rolldown/issues/1430)) ([472848b](https://github.com/rolldown/rolldown/commit/472848b56288ae5fa59db792cff83cf379885323))
+* **resolver:** ensure we always pass an absolute path to oxc_resolver ([#1442](https://github.com/rolldown/rolldown/issues/1442)) ([3ffe43f](https://github.com/rolldown/rolldown/commit/3ffe43f62ecdfb36976daf5870958b9d002ee0be))
+* rolldown typing ([#1387](https://github.com/rolldown/rolldown/issues/1387)) ([440e68e](https://github.com/rolldown/rolldown/commit/440e68ed7bb06c972cda3b12874d748ec8ef366d))
+* **rolldown_fs:** canonicalize polyfill on wasi platform ([#1436](https://github.com/rolldown/rolldown/issues/1436)) ([2530866](https://github.com/rolldown/rolldown/commit/2530866317f07426a749d960979984f1fa12d198))
+
+
+### Features
+
+* add assetFileNames binding ([#1360](https://github.com/rolldown/rolldown/issues/1360)) ([c86f784](https://github.com/rolldown/rolldown/commit/c86f78406546f20db34d606980810c51bcb86fcc))
+* advanced barrel exports optimization. ([#1374](https://github.com/rolldown/rolldown/issues/1374)) ([33a6db5](https://github.com/rolldown/rolldown/commit/33a6db5cf3a33de702a1b5e59b15e9afe6c1eb4e))
+* **core:** ensure input item always have a name ([#1407](https://github.com/rolldown/rolldown/issues/1407)) ([0e6afa2](https://github.com/rolldown/rolldown/commit/0e6afa2fe9047ffba847287a98d93f218ca590ab))
+* export more typing ([#1420](https://github.com/rolldown/rolldown/issues/1420)) ([9854330](https://github.com/rolldown/rolldown/commit/9854330074c1851872688fe3fa7a29f36cd6a011))
+* export more typing to compat rollup ([#1418](https://github.com/rolldown/rolldown/issues/1418)) ([949c819](https://github.com/rolldown/rolldown/commit/949c81960859dfaf7f83f0f468042b4bf1c36f30))
+* **inner:** add `NormalModule#module_type` ([#1448](https://github.com/rolldown/rolldown/issues/1448)) ([449dcce](https://github.com/rolldown/rolldown/commit/449dcce6ce907c2233997af8ee5cb658ed9c9e6e))
+* mark `PluginContext#parse` as unsupported ([#1289](https://github.com/rolldown/rolldown/issues/1289)) ([aef45e0](https://github.com/rolldown/rolldown/commit/aef45e09fa93e7df8f18422fb8d5c47fae0c77f0))
+* **ModuleType:** support `empty` ([#1369](https://github.com/rolldown/rolldown/issues/1369)) ([cb3bf33](https://github.com/rolldown/rolldown/commit/cb3bf33f69a303b50ffcaa04ebfa1d31c1a4a17d))
+* move dependency ([#1381](https://github.com/rolldown/rolldown/issues/1381)) ([1f70a4c](https://github.com/rolldown/rolldown/commit/1f70a4cd7b7dc0d78d0cf446bfd77b851c4c1a25))
+* **node:** expose the `moduleTypes` option ([#1451](https://github.com/rolldown/rolldown/issues/1451)) ([39f16e2](https://github.com/rolldown/rolldown/commit/39f16e2459dccc07fb793c421ff8c38096a5061b))
+* oxc v0.15.0 ([#1415](https://github.com/rolldown/rolldown/issues/1415)) ([39761b0](https://github.com/rolldown/rolldown/commit/39761b0004545338881273b6b43aebe2071450d9))
+* **rust:** add `AllocatorExt` trait ([#1350](https://github.com/rolldown/rolldown/issues/1350)) ([fa4262c](https://github.com/rolldown/rolldown/commit/fa4262c85875c02bec15114e2430fb79850bb33a))
+* support `outputOptions` hook ([#1339](https://github.com/rolldown/rolldown/issues/1339)) ([176ca26](https://github.com/rolldown/rolldown/commit/176ca26c0c3b6cb262a37db6881c3ad8349ae3df))
+* support base64 loader ([#1352](https://github.com/rolldown/rolldown/issues/1352)) ([16d5938](https://github.com/rolldown/rolldown/commit/16d59384099db5f1927144a3de501813bd79e39d))
+* support binary loader ([#1365](https://github.com/rolldown/rolldown/issues/1365)) ([8f2e07b](https://github.com/rolldown/rolldown/commit/8f2e07b54dbfe8f49722f9e01c6f1ca26b824b99))
+* support emit binary asset ([#1359](https://github.com/rolldown/rolldown/issues/1359)) ([cfc16e8](https://github.com/rolldown/rolldown/commit/cfc16e801f899359f16ea2c53ca2b94da168453a))
+* support PluginContext emit asset ([#1349](https://github.com/rolldown/rolldown/issues/1349)) ([da183aa](https://github.com/rolldown/rolldown/commit/da183aabcfdf6bdbf5abf79398b70cacccc04d4c))
+* support RenderedChunk#name ([#1421](https://github.com/rolldown/rolldown/issues/1421)) ([a64e78f](https://github.com/rolldown/rolldown/commit/a64e78f31e13e3da38dd68fede711b872c0c8d6b))
+* tree shake module side effect ([#1395](https://github.com/rolldown/rolldown/issues/1395)) ([6df56a9](https://github.com/rolldown/rolldown/commit/6df56a90b61a297c2e287f7e7fc614464d9cfc9c))
+* wasm plugin ([#1368](https://github.com/rolldown/rolldown/issues/1368)) ([65ec42c](https://github.com/rolldown/rolldown/commit/65ec42c4b7a50e0ce9e8d491e9c37c6a4203e168))
+
+
+
+## [0.10.4](https://github.com/rolldown/rolldown/compare/v0.10.3...v0.10.4) (2024-06-04)
+
+
+### Bug Fixes
+
+* add return source logic when file not downloaded and add loader … ([#1287](https://github.com/rolldown/rolldown/issues/1287)) ([103b8e5](https://github.com/rolldown/rolldown/commit/103b8e50d92c5fafea36e830a62ffb627c4d4f9e))
+* **cjs:** distinguish if symbols are referenced by chunk or modules ([#1316](https://github.com/rolldown/rolldown/issues/1316)) ([75c69b3](https://github.com/rolldown/rolldown/commit/75c69b322711e738bb367a0d7d73f2c738943013))
+* **cjs:** should render runtime module before generated imports ([#1335](https://github.com/rolldown/rolldown/issues/1335)) ([94b1371](https://github.com/rolldown/rolldown/commit/94b137111b28d92684725cc24dd2e944f25c0ab1))
+* **deps:** update dependency debug to v4.3.5 ([#1296](https://github.com/rolldown/rolldown/issues/1296)) ([95460de](https://github.com/rolldown/rolldown/commit/95460de45ddb8d825fd544a4a2399822b55068d9))
+
+
+### Features
+
+* **app:** rewrite static import ([#1323](https://github.com/rolldown/rolldown/issues/1323)) ([68c6592](https://github.com/rolldown/rolldown/commit/68c6592d6986cdb53bef1c33159c5bad6314bcd8))
+* **app:** use `IsolatingModuleFinalizer` for app output ([#1317](https://github.com/rolldown/rolldown/issues/1317)) ([92bfe2d](https://github.com/rolldown/rolldown/commit/92bfe2d6d27ec313d5afcca0207d0847eba1e681))
+* **cjs:** add `__esModule` flag ([#1313](https://github.com/rolldown/rolldown/issues/1313)) ([d892948](https://github.com/rolldown/rolldown/commit/d892948c77e1815f4ce9b224c0711ca63bdb594e))
+* **cjs:** add `"use strict"` if possible ([#1284](https://github.com/rolldown/rolldown/issues/1284)) ([bf3f86e](https://github.com/rolldown/rolldown/commit/bf3f86e09058fc34ab281fc232ea9fd031d2e07d))
+* **output:** make output folding-friendly using `#region` ([#1330](https://github.com/rolldown/rolldown/issues/1330)) ([ace105c](https://github.com/rolldown/rolldown/commit/ace105cf69965baec8ac1626d5b79e42b66574e3))
+* **plugin:** support `options` hook ([#1275](https://github.com/rolldown/rolldown/issues/1275)) ([fc94245](https://github.com/rolldown/rolldown/commit/fc9424582f34fc540d285aa40f3aa1d95d1ddd23))
+* **plugin:** support return `sideEffect: 'no-treeshake'` ([#1293](https://github.com/rolldown/rolldown/issues/1293)) ([283a58c](https://github.com/rolldown/rolldown/commit/283a58c1fdb5db1bb98458abd9c7570124c8c776))
+* remove `use strict` while emitting esm output ([#1283](https://github.com/rolldown/rolldown/issues/1283)) ([79fbbd4](https://github.com/rolldown/rolldown/commit/79fbbd4e5357335ea07f2f63041c47e17dd77e6b))
+* **rust/options:** add `BundlerOptions#loaders` ([#1280](https://github.com/rolldown/rolldown/issues/1280)) ([804df07](https://github.com/rolldown/rolldown/commit/804df07c57a5d9be1b299b9facd0fdff132c55a3))
+* **rust:** deny invalid parsing code ([#1310](https://github.com/rolldown/rolldown/issues/1310)) ([5be6ffb](https://github.com/rolldown/rolldown/commit/5be6ffb1b157780879dfcf4a96d0db15c3861ba0))
+* support text loader ([#1302](https://github.com/rolldown/rolldown/issues/1302)) ([b0f19c1](https://github.com/rolldown/rolldown/commit/b0f19c1f203a45f8a300028cbfe8cd38a77d95b4))
+
+
+
+## [0.10.3](https://github.com/rolldown/rolldown/compare/v0.10.2...v0.10.3) (2024-05-29)
+
+
+### Bug Fixes
+
+* **cjs:** only wrap entry cjs modules conditionally ([#1164](https://github.com/rolldown/rolldown/issues/1164)) ([97d50b5](https://github.com/rolldown/rolldown/commit/97d50b538b4b4e2dd5d9ecd177a2893ced47310d))
+* **cjs:** should keep correct esm semantic in importing external modules ([#1172](https://github.com/rolldown/rolldown/issues/1172)) ([4c6a63a](https://github.com/rolldown/rolldown/commit/4c6a63a08180a97a25e8c27f4b4a34e5401163a3))
+* **cli:** Improvements to more brandaly CLI ([#754](https://github.com/rolldown/rolldown/issues/754)) ([c07c3ed](https://github.com/rolldown/rolldown/commit/c07c3ed2b5140dc07e422f08fb44907bbeb860f7))
+* **deps:** update dependency @types/lodash to v4.17.3 ([#1145](https://github.com/rolldown/rolldown/issues/1145)) ([52e733d](https://github.com/rolldown/rolldown/commit/52e733d588a5e94d363a0d49a0d5846b7c319175))
+* **deps:** update dependency @types/lodash to v4.17.4 ([#1147](https://github.com/rolldown/rolldown/issues/1147)) ([73e6d81](https://github.com/rolldown/rolldown/commit/73e6d81a52361a1bb57b047f9c32388189554d0c))
+* **deps:** update dependency esbuild to ^0.21.0 ([#1049](https://github.com/rolldown/rolldown/issues/1049)) ([5578516](https://github.com/rolldown/rolldown/commit/5578516aa22ae5ed1d3cece0116b1c6984b8c933))
+* **deps:** update dependency esbuild to v0.21.1 ([#1053](https://github.com/rolldown/rolldown/issues/1053)) ([562a7e2](https://github.com/rolldown/rolldown/commit/562a7e291398e76b600ba4b4d0fa71f67a9b7ed6))
+* **deps:** update dependency esbuild to v0.21.3 ([#1139](https://github.com/rolldown/rolldown/issues/1139)) ([68f44ff](https://github.com/rolldown/rolldown/commit/68f44ff6ebb87a9713a8e02d0d649eb633fb6fa0))
+* **deps:** update dependency execa to v9 ([#1069](https://github.com/rolldown/rolldown/issues/1069)) ([6680a14](https://github.com/rolldown/rolldown/commit/6680a14541bfc4fdd16adac6903f31f8d22e5a9c))
+* **deps:** update dependency execa to v9.0.2 ([#1078](https://github.com/rolldown/rolldown/issues/1078)) ([db1be3d](https://github.com/rolldown/rolldown/commit/db1be3d3baa9c731ac974cd688a804256f78e093))
+* **deps:** update dependency execa to v9.1.0 ([#1110](https://github.com/rolldown/rolldown/issues/1110)) ([c2b6818](https://github.com/rolldown/rolldown/commit/c2b681822b0dc8662061578796582f0586170111))
+* **deps:** update dependency vue to v3.4.27 ([#1048](https://github.com/rolldown/rolldown/issues/1048)) ([cf87c5d](https://github.com/rolldown/rolldown/commit/cf87c5d6df4875d99e6e12c0f73469cc0f7199d7))
+* **deps:** update dependency zod to v3.23.8 ([#1068](https://github.com/rolldown/rolldown/issues/1068)) ([7fef82c](https://github.com/rolldown/rolldown/commit/7fef82c6872fa1b613169795cc147f0b9aceed08))
+* **deps:** update dependency zx to v8.1.0 ([#1120](https://github.com/rolldown/rolldown/issues/1120)) ([7558600](https://github.com/rolldown/rolldown/commit/7558600aa9b4cb23006f8c8b2583f344896c96d9))
+* **deps:** update dependency zx to v8.1.2 ([#1255](https://github.com/rolldown/rolldown/issues/1255)) ([4ab44ed](https://github.com/rolldown/rolldown/commit/4ab44ed5381da37f2bbd9583104bbcd818d6f61a))
+* **deps:** update minor dependencies ([#1257](https://github.com/rolldown/rolldown/issues/1257)) ([00564af](https://github.com/rolldown/rolldown/commit/00564afb33e654dee768eeb7031396f4a709cca0))
+* **deps:** update patch dependencies ([#1060](https://github.com/rolldown/rolldown/issues/1060)) ([8a24ba9](https://github.com/rolldown/rolldown/commit/8a24ba9516f165f1ec75f9dcdf410f6062961cf4))
+* **deps:** update patch dependencies ([#1073](https://github.com/rolldown/rolldown/issues/1073)) ([ec7ae9a](https://github.com/rolldown/rolldown/commit/ec7ae9a5eabec559b00fe96102f4bbd408d4b46f))
+* **deps:** update patch dependencies ([#1104](https://github.com/rolldown/rolldown/issues/1104)) ([cdd981e](https://github.com/rolldown/rolldown/commit/cdd981ed916d269c4f22cb95037cc7158bdab774))
+* **deps:** update patch dependencies ([#1215](https://github.com/rolldown/rolldown/issues/1215)) ([6022624](https://github.com/rolldown/rolldown/commit/602262468402e820a80204105aba9883f3d4c69c))
+* **deps:** update patch dependencies ([#1246](https://github.com/rolldown/rolldown/issues/1246)) ([f4bd84f](https://github.com/rolldown/rolldown/commit/f4bd84f90a8b17b9d96f6b9e06f31839b66fee87))
+* **doc:** correct link and fileName in documentation ([#1241](https://github.com/rolldown/rolldown/issues/1241)) ([afd37ef](https://github.com/rolldown/rolldown/commit/afd37ef2c83d378f9d2e8cc3b0cd74ac170db03b))
+* ensure chunk order ([#1135](https://github.com/rolldown/rolldown/issues/1135)) ([975e884](https://github.com/rolldown/rolldown/commit/975e884671e364ddddef39a993aa0c688dfb6aa0))
+* esbuild case test_common_js_variable_in_esm_type_module ([#1183](https://github.com/rolldown/rolldown/issues/1183)) ([f11a717](https://github.com/rolldown/rolldown/commit/f11a717905b59b0e0c17a9435c5a05ab9988e51d))
+* generateBundle and writeBundle compat to rollup ([#966](https://github.com/rolldown/rolldown/issues/966)) ([4a45b2d](https://github.com/rolldown/rolldown/commit/4a45b2d5359cd65a9e1a8775b750116619c3c85d))
+* **node/cli:** exit process after bundling ([#1097](https://github.com/rolldown/rolldown/issues/1097)) ([9a91687](https://github.com/rolldown/rolldown/commit/9a9168784131013a224e3558a7c801d362d875d6)), closes [#985](https://github.com/rolldown/rolldown/issues/985)
+* **node/rolldown:** CIRCULAR_DEPENDENCY warnings. ([#1232](https://github.com/rolldown/rolldown/issues/1232)) ([56320ab](https://github.com/rolldown/rolldown/commit/56320abcb82e19bee5a68ca38e019ee845f4fcad))
+* **node:** should call hooks with await ([#950](https://github.com/rolldown/rolldown/issues/950)) ([1c5c7d5](https://github.com/rolldown/rolldown/commit/1c5c7d59449680d58074e11c4a58df2377a798f0))
+* normalize windows path for sourcemap sources ([#941](https://github.com/rolldown/rolldown/issues/941)) ([bf9bbe1](https://github.com/rolldown/rolldown/commit/bf9bbe191e58ba170f57759d196b1b0c26aeef1e))
+* **resolve:** care about `browser` field while targeting `browser` platform ([#1075](https://github.com/rolldown/rolldown/issues/1075)) ([936a6ab](https://github.com/rolldown/rolldown/commit/936a6abc071b4a600c57b7b7a3d696e8b41ea6b0))
+* **resolve:** treat builtin modules as external by default while targeting `node` platform ([#1190](https://github.com/rolldown/rolldown/issues/1190)) ([8d088d8](https://github.com/rolldown/rolldown/commit/8d088d8a8125b57405ed69899ac504b2c36799bb))
+* rewrite dynamic import to correct entry chunk ([#1195](https://github.com/rolldown/rolldown/issues/1195)) ([d242f3e](https://github.com/rolldown/rolldown/commit/d242f3ee23e7641d1721e7756ceb2a1a514250f8))
+* **rolldown/hash:** caculate hash by scanning actually used dependencies and also prevent hash collision from different chunks that have the same content ([#1141](https://github.com/rolldown/rolldown/issues/1141)) ([130013b](https://github.com/rolldown/rolldown/commit/130013b90e98f087c20e7f96242ab762bfc67e43))
+* **rust/resolve:** should point to the correct resolved external module with alias ([#1253](https://github.com/rolldown/rolldown/issues/1253)) ([4667d32](https://github.com/rolldown/rolldown/commit/4667d32313cc8da5e48420c2199c1a15d2629271))
+* **rust:** cacluate order of import chunks by global module execution order ([#1206](https://github.com/rolldown/rolldown/issues/1206)) ([c9acb39](https://github.com/rolldown/rolldown/commit/c9acb392a3c1c74d92c6230c4136ab61d0bc69a8))
+* **rust:** remove not existed member method ([3134b77](https://github.com/rolldown/rolldown/commit/3134b77a03474a44c59854d6031b90eecbd9eacc))
+* should generate correct chunk import path to importee in importer chunk ([#1180](https://github.com/rolldown/rolldown/issues/1180)) ([8190a5c](https://github.com/rolldown/rolldown/commit/8190a5c5206ffe21425e2e64867eb5e95ffb8508))
+* test_package_json_browser_no_ext ([#1093](https://github.com/rolldown/rolldown/issues/1093)) ([82e77a1](https://github.com/rolldown/rolldown/commit/82e77a15e35418c7bb2bbe7389a960d8532aac2d))
+* test_package_json_browser_over_main_node ([#1107](https://github.com/rolldown/rolldown/issues/1107)) ([e863b43](https://github.com/rolldown/rolldown/commit/e863b43922b47afbbe570e752c487168dfec7a38))
+* test_package_json_type_should_be_types ([#1184](https://github.com/rolldown/rolldown/issues/1184)) ([63384bd](https://github.com/rolldown/rolldown/commit/63384bd1a134a590394938a61da9b61edc31e974))
+* **tree_shaking:** determine indirect side effects ([#1213](https://github.com/rolldown/rolldown/issues/1213)) ([1003174](https://github.com/rolldown/rolldown/commit/1003174760be8db0ade2854399328dbbc152c202))
+* **tree-shaking:** module should consider having side effect if it's dependencies have side effect ([#1205](https://github.com/rolldown/rolldown/issues/1205)) ([b235a38](https://github.com/rolldown/rolldown/commit/b235a3865c593048d8054d47197b22df760803f2))
+* typo ([#1175](https://github.com/rolldown/rolldown/issues/1175)) ([6b0bbe7](https://github.com/rolldown/rolldown/commit/6b0bbe7fdaa0f117de80245ceca35d6b5b3b2adb))
+* using path as sourcemap path ([#946](https://github.com/rolldown/rolldown/issues/946)) ([bc0934b](https://github.com/rolldown/rolldown/commit/bc0934bd3fc856e44140ee3767ae753ff4c078e3))
+
+
+### Features
+
+* add ModuleInfo isEntry ([#988](https://github.com/rolldown/rolldown/issues/988)) ([a5d0a45](https://github.com/rolldown/rolldown/commit/a5d0a45a5c721fcd88515aa2e8c5f2b24904224d))
+* add ModuleInfo some fileds ([#973](https://github.com/rolldown/rolldown/issues/973)) ([040f27d](https://github.com/rolldown/rolldown/commit/040f27dfe411a548142ac8fdcc2782c7f712f1d4))
+* add onLog option ([#1203](https://github.com/rolldown/rolldown/issues/1203)) ([773024e](https://github.com/rolldown/rolldown/commit/773024e1007375a4d8b9050315d9ade503dfaab9))
+* add OutputChunk#preliminaryFileName ([#1096](https://github.com/rolldown/rolldown/issues/1096)) ([49a134a](https://github.com/rolldown/rolldown/commit/49a134a697a2e22c700c7acace5316bfda532686))
+* add plugin context info/warn/error/debug ([#1051](https://github.com/rolldown/rolldown/issues/1051)) ([1a9532d](https://github.com/rolldown/rolldown/commit/1a9532d5938d5465a58aa82879dd7f231d1bf868))
+* add TransfromPluginContext debug/info/warn/error ([#1176](https://github.com/rolldown/rolldown/issues/1176)) ([9e4dfa8](https://github.com/rolldown/rolldown/commit/9e4dfa80f82d9cae3e69b4c0dd1c3b8e7bc36950))
+* bootstrap Rolldown with Rolldown ([#1211](https://github.com/rolldown/rolldown/issues/1211)) ([10a7d97](https://github.com/rolldown/rolldown/commit/10a7d97e3f81377d9656f7bf070dcac33099c11e))
+* bump oxc to v0.13.1 ([#1208](https://github.com/rolldown/rolldown/issues/1208)) ([fea76c9](https://github.com/rolldown/rolldown/commit/fea76c986e8e7be7696117ff0dc80cf8da4af8ec))
+* derive side effects from package json ([#1103](https://github.com/rolldown/rolldown/issues/1103)) ([9a17694](https://github.com/rolldown/rolldown/commit/9a176945c5944ce831b5a1f7a3d96b5a33f743a6))
+* **error:** emit diagnostics for missing export ([#1238](https://github.com/rolldown/rolldown/issues/1238)) ([0b04591](https://github.com/rolldown/rolldown/commit/0b045912dc9ef31077bcc98b25cd92eb4853c5a6))
+* mutate `Output` and `OutputChunk` ([#1082](https://github.com/rolldown/rolldown/issues/1082)) ([430d642](https://github.com/rolldown/rolldown/commit/430d6429418a60c54fbb3f00771254e449c4582d))
+* **node/plugin:** support `PluginContext#resolve` ([#1102](https://github.com/rolldown/rolldown/issues/1102)) ([5bcf3ed](https://github.com/rolldown/rolldown/commit/5bcf3edd60789d9b5ba34caab77773cebfa0b80b))
+* **node/rolldown:** support cjs output ([#1202](https://github.com/rolldown/rolldown/issues/1202)) ([e13d865](https://github.com/rolldown/rolldown/commit/e13d865f8ff44dea546eda8e85eac4b467a5fd9d))
+* parallel plugin handle error in worker ([#986](https://github.com/rolldown/rolldown/issues/986)) ([ff1286c](https://github.com/rolldown/rolldown/commit/ff1286c46e7f76d5180ecca861b023c11ceae6c7))
+* **rust/bundler_options:** add output format `app` ([#1242](https://github.com/rolldown/rolldown/issues/1242)) ([33f0a49](https://github.com/rolldown/rolldown/commit/33f0a49c9afa57694cdb8d3b7576fb3fe5ad79f2))
+* **rust:** add `NormalModule#stable_resource_id` ([#1112](https://github.com/rolldown/rolldown/issues/1112)) ([54b76bf](https://github.com/rolldown/rolldown/commit/54b76bf5ee5ecb7d4ec6ea17cc0f897ef809b11a))
+* **rust:** improve error message of unknown return value of `JsCallback` ([#970](https://github.com/rolldown/rolldown/issues/970)) ([c749dce](https://github.com/rolldown/rolldown/commit/c749dcee83504a31ce007830165fc0bc6b2c31f5))
+* **rust:** introduce `Loader` concept ([#1193](https://github.com/rolldown/rolldown/issues/1193)) ([b530331](https://github.com/rolldown/rolldown/commit/b530331c55f905e3965cf659c73cb08d0c8faa60))
+* **rust:** render external imports after normal imports ([#1171](https://github.com/rolldown/rolldown/issues/1171)) ([f102cc0](https://github.com/rolldown/rolldown/commit/f102cc0ef4550cd71f8fe7340618a420a6f93367)), closes [/github.com/rolldown/rolldown/blob/5c3b4fbb732dda092bc5298b2ad1b85786735977/crates/rolldown/tests/esbuild/import_star/re_export_star_as_external_common_js/artifacts.snap#L19-L20](https://github.com//github.com/rolldown/rolldown/blob/5c3b4fbb732dda092bc5298b2ad1b85786735977/crates/rolldown/tests/esbuild/import_star/re_export_star_as_external_common_js/artifacts.snap/issues/L19-L20)
+* **rust:** store `package.json` in `NormalModule` ([#1170](https://github.com/rolldown/rolldown/issues/1170)) ([e9938d9](https://github.com/rolldown/rolldown/commit/e9938d99b4ddae28717aad8530376ca3a6ec5b87))
+* **rust:** support basic cjs output ([#1026](https://github.com/rolldown/rolldown/issues/1026)) ([3ee1010](https://github.com/rolldown/rolldown/commit/3ee101043a253b3f74cd1ee6b5ec2438b178536b))
+* support `[hash]` in `entry_file_names` and `chunk_file_names` ([#929](https://github.com/rolldown/rolldown/issues/929)) ([0546001](https://github.com/rolldown/rolldown/commit/05460019c6c3ebec41588ee7cc5e89bd36b71c2a))
+* support `resolveDynamicImport` hook ([#981](https://github.com/rolldown/rolldown/issues/981)) ([37ef30d](https://github.com/rolldown/rolldown/commit/37ef30d60502a51b7aa9762c72acf5bd440532ef))
+* support augmentChunkHash hook ([#1258](https://github.com/rolldown/rolldown/issues/1258)) ([4520a81](https://github.com/rolldown/rolldown/commit/4520a81280571248fedeea33382d83cf2cb3336a))
+* support basic ``moduleParsed` hook ([#908](https://github.com/rolldown/rolldown/issues/908)) ([3d2bbc4](https://github.com/rolldown/rolldown/commit/3d2bbc48440514cde1e2af20b7412c592ebd8605))
+* support bundling `.json` files ([#1194](https://github.com/rolldown/rolldown/issues/1194)) ([b997019](https://github.com/rolldown/rolldown/commit/b9970196f449efa8418f8edb73a4c8c49192a6fd))
+* support delete OutputBundle item ([#1083](https://github.com/rolldown/rolldown/issues/1083)) ([b933892](https://github.com/rolldown/rolldown/commit/b93389246d44ebf094632274a3983ba93232136d))
+* support hook module side effects ([#1229](https://github.com/rolldown/rolldown/issues/1229)) ([c6939e5](https://github.com/rolldown/rolldown/commit/c6939e52546e7d7c6bf5dfdd2451c68a8cad1752))
+* support OutputChunk#dynamicImports and RenderedChunk#dynamicImp… ([#1002](https://github.com/rolldown/rolldown/issues/1002)) ([16e6ea1](https://github.com/rolldown/rolldown/commit/16e6ea1fd95f2953418db9fb85224a9f45854560))
+* support OutputChunk#imports and RenderedChunk#imports ([#999](https://github.com/rolldown/rolldown/issues/999)) ([76a0f3f](https://github.com/rolldown/rolldown/commit/76a0f3f13f67f276c647c1f5651c6ffb3c20a80c))
+* support sourcemapIgnoreList ([#916](https://github.com/rolldown/rolldown/issues/916)) ([9795d0a](https://github.com/rolldown/rolldown/commit/9795d0a6edb43fb2e2e2a6615252c29ba96a9874))
+* support sourcemapPathTransform option ([#920](https://github.com/rolldown/rolldown/issues/920)) ([3ebf0ad](https://github.com/rolldown/rolldown/commit/3ebf0ade9dfd4a595a0d0735a8a6dc634bc98be3))
+* support TransformPluginContext#getCombinedSourcemap ([#1121](https://github.com/rolldown/rolldown/issues/1121)) ([e02e257](https://github.com/rolldown/rolldown/commit/e02e2576ece5292bdb7e9a96dd76ce8f24295706))
+* support using unicode as import/export name ([#1196](https://github.com/rolldown/rolldown/issues/1196)) ([2c03032](https://github.com/rolldown/rolldown/commit/2c0303254c0cafd0495428383f64df7d0dbeca0e))
+* treat unresolved module as external by default and emit warnings ([#1087](https://github.com/rolldown/rolldown/issues/1087)) ([985f497](https://github.com/rolldown/rolldown/commit/985f49705cc7cc449a65c77f7ab2353919a1a5e3))
+* **tree_shaking:**  pure annotation ([#1225](https://github.com/rolldown/rolldown/issues/1225)) ([d7d2284](https://github.com/rolldown/rolldown/commit/d7d2284b15d9b2f9e622e9c2922cfeca32c83e92))
+* using onLog option export rust side warnings ([#1204](https://github.com/rolldown/rolldown/issues/1204)) ([4fb5116](https://github.com/rolldown/rolldown/commit/4fb51165d8ca471c6b21b87ae86d4f464acf5121))
+
+
+### Performance Improvements
+
+* **rolldown:** avoid spurious allocations when prettifying paths ([#945](https://github.com/rolldown/rolldown/issues/945)) ([4f8d101](https://github.com/rolldown/rolldown/commit/4f8d1013da158a61a634210a85cd7a192ff77c20))
+
+
+
 ## [0.10.2](https://github.com/rolldown/rolldown/compare/v0.10.1...v0.10.2) (2024-04-17)
 
 

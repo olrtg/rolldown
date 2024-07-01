@@ -9,7 +9,7 @@ input_file: crates/rolldown/tests/esbuild/default/forbid_const_assign_when_bundl
 
 ```text
 [ILLEGAL_REASSIGNMENT] Warning: Unexpected re-assignment of const variable `x`
-   ╭─[tests/esbuild/default/forbid_const_assign_when_bundling/entry.js:4:3]
+   ╭─[entry.js:4:3]
    │
  3 │   const x = 1
    │         ┬  
@@ -24,7 +24,7 @@ input_file: crates/rolldown/tests/esbuild/default/forbid_const_assign_when_bundl
 
 ```text
 [ILLEGAL_REASSIGNMENT] Warning: Unexpected re-assignment of const variable `y`
-    ╭─[tests/esbuild/default/forbid_const_assign_when_bundling/entry.js:14:5]
+    ╭─[entry.js:14:5]
     │
  13 │     const y = 1
     │           ┬  
@@ -40,22 +40,27 @@ input_file: crates/rolldown/tests/esbuild/default/forbid_const_assign_when_bundl
 ## entry_js.mjs
 
 ```js
-// entry.js
+
+//#region entry.js
 let err;
-try{
+try {
 	const x = 1;
 	x = 2;
-}catch(e){
+} catch (e) {
 	err = e;
-}assert(typeof err !== 'undefined');
+}
+assert(typeof err !== 'undefined');
 function foo() {
 	let err$1;
-	try{
+	try {
 		const y = 1;
 		y = 2;
-	}catch(e){
+	} catch (e) {
 		err$1 = e;
-	}	assert(typeof err$1 !== 'undefined');
+	}
+	assert(typeof err$1 !== 'undefined');
 }
 foo();
+
+//#endregion
 ```
