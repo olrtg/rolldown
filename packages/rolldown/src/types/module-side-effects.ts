@@ -6,16 +6,15 @@ interface ModuleSideEffectsRule {
 
 type ModuleSideEffectsOption =
   | boolean
+  | readonly string[]
   | ModuleSideEffectsRule[]
-  | ((id: string, isResolved: boolean) => boolean | undefined)
+  | ((id: string, external: boolean) => boolean | undefined)
   | 'no-external';
 
-export type TreeshakingOptions =
-  | {
-    moduleSideEffects?: ModuleSideEffectsOption;
-    annotations?: boolean;
-    manualPureFunctions?: string[];
-    unknownGlobalSideEffects?: boolean;
-    commonjs?: boolean;
-  }
-  | boolean;
+export type TreeshakingOptions = {
+  moduleSideEffects?: ModuleSideEffectsOption;
+  annotations?: boolean;
+  manualPureFunctions?: readonly string[];
+  unknownGlobalSideEffects?: boolean;
+  commonjs?: boolean;
+};

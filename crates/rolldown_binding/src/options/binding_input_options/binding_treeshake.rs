@@ -2,7 +2,7 @@ use derive_more::Debug;
 use rustc_hash::FxHashSet;
 use std::sync::Arc;
 
-use napi::bindgen_prelude::{Either3, FnArgs};
+use napi::bindgen_prelude::{Either4, FnArgs};
 use rolldown::{InnerOptions, ModuleSideEffects, ModuleSideEffectsRule};
 use rolldown_utils::js_regex::HybridRegex;
 
@@ -11,8 +11,9 @@ use crate::{
   types::js_regex::JsRegExp,
 };
 
-pub type BindingModuleSideEffects = Either3<
+pub type BindingModuleSideEffects = Either4<
   bool,
+  Vec<String>,
   Vec<BindingModuleSideEffectsRule>,
   JsCallback<FnArgs<(String, bool)>, Option<bool>>,
 >;
@@ -21,11 +22,12 @@ pub type BindingModuleSideEffects = Either3<
 #[derive(Debug)]
 pub struct BindingTreeshake {
   #[napi(
-    ts_type = "boolean | BindingModuleSideEffectsRule[] | ((id: string, is_external: boolean) => boolean | undefined)"
+    ts_type = "boolean | ReadonlyArray<string> | BindingModuleSideEffectsRule[] | ((id: string, external: boolean) => boolean | undefined)"
   )]
   #[debug("ModuleSideEffects(...)")]
   pub module_side_effects: BindingModuleSideEffects,
   pub annotations: Option<bool>,
+  #[napi(ts_type = "ReadonlyArray<string>")]
   pub manual_pure_functions: Option<Vec<String>>,
   pub unknown_global_side_effects: Option<bool>,
   pub commonjs: Option<bool>,
@@ -44,8 +46,9 @@ pub struct BindingModuleSideEffectsRule {
 impl TryFrom<BindingTreeshake> for rolldown::TreeshakeOptions {
   fn try_from(value: BindingTreeshake) -> anyhow::Result<Self> {
     let module_side_effects = match value.module_side_effects {
-      Either3::A(value) => ModuleSideEffects::Boolean(value),
-      Either3::B(rules) => {
+      Either4::A(value) => ModuleSideEffects::Boolean(value),
+      Either4::B(rules) => ModuleSideEffects::IdSet(rules.into_iter().collect::<FxHashSet<_>>()),
+      Either4::C(rules) => {
         let mut ret = Vec::with_capacity(rules.len());
         for rule in rules {
           let test = match rule.test {
@@ -60,7 +63,7 @@ impl TryFrom<BindingTreeshake> for rolldown::TreeshakeOptions {
         }
         ModuleSideEffects::ModuleSideEffectsRules(ret)
       }
-      Either3::C(ts_fn) => {
+      Either4::D(ts_fn) => {
         ModuleSideEffects::Function(Arc::new(move |id: &str, is_external: bool| {
           let id = id.to_string();
           let ts_fn = Arc::clone(&ts_fn);
