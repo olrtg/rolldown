@@ -14,7 +14,8 @@ use std::{
 use cow_utils::CowUtils;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use rolldown_plugin::{HookUsage, Plugin, PluginContext};
-use sugar_path::SugarPath;
+use rolldown_plugin_utils::is_in_node_modules;
+use sugar_path::SugarPath as _;
 
 #[derive(Debug)]
 #[expect(clippy::struct_excessive_bools)]
@@ -22,6 +23,7 @@ pub struct ReporterPlugin {
   assets_dir: String,
   is_lib: bool,
   is_tty: bool,
+  warn_large_chunks: bool,
   should_log_info: bool,
   chunk_limit: usize,
   chunk_count: AtomicU32,
@@ -42,12 +44,14 @@ impl ReporterPlugin {
     report_compressed_size: bool,
     assets_dir: String,
     is_lib: bool,
+    warn_large_chunks: bool,
   ) -> Self {
     Self {
       assets_dir,
       is_lib,
       is_tty,
       should_log_info,
+      warn_large_chunks,
       chunk_limit,
       chunk_count: AtomicU32::new(0),
       compressed_count: AtomicU32::new(0),
@@ -135,11 +139,48 @@ impl Plugin for ReporterPlugin {
 
   async fn render_chunk(
     &self,
-    _ctx: &PluginContext,
-    _args: &rolldown_plugin::HookRenderChunkArgs<'_>,
+    ctx: &PluginContext,
+    args: &rolldown_plugin::HookRenderChunkArgs<'_>,
   ) -> rolldown_plugin::HookRenderChunkReturn {
-    // TODO(shulaoda): dynamic importer warning
-    // <https://github.com/vitejs/rolldown-vite/blob/9865a3a/packages/vite/src/node/plugins/reporter.ts#L300-L328>
+    // TODO(shulaoda): Consider moving the following logic into core
+    if !args.options.inline_dynamic_imports {
+      for id in &args.chunk.module_ids {
+        let Some(module) = ctx.get_module_info(id) else {
+          continue;
+        };
+        // When a dynamic importer shares a chunk with the imported module,
+        // warn that the dynamic imported module will not be moved to another chunk (#12850).
+        if !module.importers.is_empty() && !module.dynamic_importers.is_empty() {
+          // Filter out the intersection of dynamic importers and sibling modules in
+          // the same chunk. The intersecting dynamic importers' dynamic import is not
+          // expected to work. Note we're only detecting the direct ineffective dynamic import here.
+          let detected_ineffective_dynamic_import = module
+            .dynamic_importers
+            .iter()
+            .any(|id| !is_in_node_modules(id.as_path()) && args.chunk.module_ids.contains(id));
+          if detected_ineffective_dynamic_import {
+            let message = format!(
+              "\n(!) {} is dynamically imported by {} but also statically imported by {}, dynamic import will not move module into another chunk.\n",
+              module.id.as_ref(),
+              module
+                .dynamic_importers
+                .iter()
+                .map(std::convert::AsRef::as_ref)
+                .collect::<Vec<_>>()
+                .join(", "),
+              module
+                .importers
+                .iter()
+                .map(std::convert::AsRef::as_ref)
+                .collect::<Vec<_>>()
+                .join(", "),
+            );
+            ctx.warn(rolldown_common::LogWithoutPlugin { message, ..Default::default() });
+          }
+        }
+      }
+    }
+
     let chunk_count = self.chunk_count.fetch_add(1, Ordering::SeqCst);
     if self.should_log_info {
       if self.is_tty {
@@ -158,11 +199,10 @@ impl Plugin for ReporterPlugin {
   #[expect(clippy::too_many_lines)]
   async fn write_bundle(
     &self,
-    _ctx: &PluginContext,
+    ctx: &PluginContext,
     args: &mut rolldown_plugin::HookWriteBundleArgs<'_>,
   ) -> rolldown_plugin::HookNoopReturn {
-    // TODO(shulaoda): support this warning
-    // <https://github.com/vitejs/rolldown-vite/blob/9865a3a/packages/vite/src/node/plugins/reporter.ts#L255-L269>
+    let mut has_large_chunks = false;
     if self.should_log_info {
       let mut longest = 0;
       let mut biggest_size = 0;
@@ -298,6 +338,7 @@ impl Plugin for ReporterPlugin {
 
           let size = utils::display_size(log_entry.size);
           if group == utils::AssetGroup::JS && log_entry.size.div_ceil(1000) > self.chunk_limit {
+            has_large_chunks = true;
             let _ = write!(&mut info, "\x1b[1m\x1b[33m{size:>size_pad$}\x1b[39m\x1b[22m");
           } else {
             let _ = write!(&mut info, "\x1b[1m\x1b[2m{size:>size_pad$}\x1b[22m\x1b[22m");
@@ -316,6 +357,21 @@ impl Plugin for ReporterPlugin {
           utils::log_info(&info);
         }
       }
+    } else if self.warn_large_chunks {
+      has_large_chunks = args.bundle.iter().any(|output| {
+        if let rolldown_common::Output::Chunk(chunk) = output {
+          chunk.code.len().div_ceil(1000) > self.chunk_limit
+        } else {
+          false
+        }
+      });
+    }
+    if self.warn_large_chunks && has_large_chunks {
+      let message = format!(
+        "\x1b[1m\x1b[33m\n(!) Some chunks are larger than {} kB after minification. Consider:\n- Using dynamic import() to code-split the application\n- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks\n- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.",
+        itoa::Buffer::new().format(self.chunk_limit),
+      );
+      ctx.warn(rolldown_common::LogWithoutPlugin { message, ..Default::default() });
     }
     Ok(())
   }
